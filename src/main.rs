@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::collections::LinkedList;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 enum OrderSide {
     Bid, // buy 1
     Ask, // sell -1 like buying -100
@@ -129,10 +129,7 @@ impl OrdersAtPrice {
         */
         let order_amount = order.size;
         let mut order_amount_left: i64 = order_amount;
-        if self.orders.is_empty()
-            || (self.orders.front().unwrap().size.is_positive() == order_amount.is_positive()
-                || self.orders.front().unwrap().size.is_negative() == order_amount.is_negative())
-        {
+        if self.orders.is_empty() || self.orders.front().unwrap().side == order.side {
             self.orders
                 .push_back(LimitOrder::new_from(order, order.size));
         } else {
@@ -141,7 +138,6 @@ impl OrdersAtPrice {
                 println!("Order: size {}", cur.size);
                 if order_amount_left.abs() == cur.size.abs() {
                     cur.size = 0;
-                    order_amount_left = 0;
                     break;
                 } else if order_amount_left.abs() > cur.size.abs() {
                     order_amount_left -= cur.size.abs();
@@ -149,8 +145,8 @@ impl OrdersAtPrice {
                     order_iter.next();
                 } else {
                     // order_amount_left.abs() < cur.unwrap().abs()
-                    cur.size -= order_amount_left;
-                    order_amount_left = 0;
+                    cur.size = cur.size.abs() - order_amount_left;
+                    println!("New order amount: {}", cur.size);
                     break;
                 }
             }
