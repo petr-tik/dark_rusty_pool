@@ -1,0 +1,6 @@
+[package]
+name = "order_book"
+version = "0.1.0"
+authors = ["petr-tik <petr-tik@users.noreply.github.com>"]
+
+[dependencies]
