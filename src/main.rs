@@ -2,6 +2,11 @@ use std::cmp::min;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::LinkedList;
+use std::env;
+use std::io;
+use std::io::prelude::*;
+use std::result::Result::{Ok, Err};
+
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum OrderSide {
@@ -41,7 +46,6 @@ struct LimitOrder {
 
 impl LimitOrder {
     fn new(input_line: &str) -> Self {
-        println!("{}", input_line);
         let input_vec: Vec<&str> = input_line.trim().split(" ").collect();
 
         let float_from_input = input_vec[4].parse::<f64>().unwrap_or(0.0) * 100.0;
@@ -109,13 +113,13 @@ impl OrdersAtPrice {
             if cur.id != order.id {
                 continue;
             } else {
-                println!("Found the order to reduce");
+                // println!("Found the order to reduce");
                 if order.size >= cur.size {
                     cur.size = 0;
                 } else {
                     cur.size -= order.size;
                 }
-                println!("{:?}", cur);
+                // println!("{:?}", cur);
                 self.depth -= order.size;
                 break;
             }
@@ -141,21 +145,28 @@ struct OrderBook {
     bids_total_size: i64,
     asks_at_price: BTreeMap<i64, OrdersAtPrice>,
     asks_total_size: i64,
+    target_size: i64,
+    last_action_side: OrderSide,
+    last_action_timestamp: String,
 }
 
 impl OrderBook {
-    fn new() -> Self {
+    fn new(target_size: i64) -> Self {
         OrderBook {
             cache: IdPriceCache::new(),
             bids_at_price: BTreeMap::new(),
             asks_at_price: BTreeMap::new(),
             bids_total_size: 0,
             asks_total_size: 0,
+            target_size: target_size,
+            last_action_side: OrderSide::Bid,
+            last_action_timestamp: "dummy_string".to_string(),
         }
     }
 
     fn add(&mut self, order: LimitOrder) {
         if order.side == OrderSide::Bid {
+            self.last_action_side = OrderSide::Bid;
             if self.bids_at_price.contains_key(&order.price) == false {
                 self.bids_at_price.insert(order.price, OrdersAtPrice::new());
             }
@@ -163,7 +174,8 @@ impl OrderBook {
                 self.bids_at_price.get_mut(&order.price).unwrap();
             orders_at_given_price.insert(&order);
             self.bids_total_size += order.size;
-        } else {
+        } else if order.side == OrderSide::Ask {
+            self.last_action_side = OrderSide::Ask;
             if self.asks_at_price.contains_key(&order.price) == false {
                 self.asks_at_price.insert(order.price, OrdersAtPrice::new());
             }
@@ -186,12 +198,15 @@ impl OrderBook {
          */
 
         let (price, side) = self.cache.cache.get(&order.id).unwrap();
+        self.last_action_timestamp == order.timestamp;
         if side == &OrderSide::Ask {
             self.asks_at_price.get_mut(&price).unwrap().reduce(&order);
             self.asks_total_size -= order.size;
+            self.last_action_side == OrderSide::Ask;
         } else if side == &OrderSide::Bid {
             self.bids_at_price.get_mut(&price).unwrap().reduce(&order);
             self.bids_total_size -= order.size;
+            self.last_action_side == OrderSide::Bid;
         }
     }
 
@@ -214,13 +229,21 @@ impl OrderBook {
             }
         }
     }
+fn get_target_size() -> i64 {
+    let args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        // implement error handling
+}
+    let target_size: i64 = args[1].parse::<i64>().unwrap_or(0);
+    
+    target_size
+
 }
 
 fn main() {
-    println!("Hello, world!");
-    let mut ob: OrderBook = OrderBook::new();
-    use std::io;
-    use std::io::prelude::*;
+    let target_size = get_target_size();
+    let mut ob: OrderBook = OrderBook::new(target_size);
+
     let stdin = io::stdin();
     for order_line in stdin.lock().lines() {
         let unwrapped_line: &str = &order_line.unwrap();
