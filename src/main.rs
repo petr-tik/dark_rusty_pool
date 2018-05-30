@@ -146,8 +146,9 @@ struct OrderBook {
     asks_at_price: BTreeMap<i64, OrdersAtPrice>,
     asks_total_size: i64,
     target_size: i64,
-    last_action_side: OrderSide,
-    last_action_timestamp: String,
+    // only 1 side is affected on Reduce or Limit order
+    last_action_side: OrderSide, // which side was touched last
+    last_action_timestamp: String, // timestamp of last touched side
 }
 
 impl OrderBook {
