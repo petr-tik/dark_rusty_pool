@@ -5,12 +5,20 @@ use std::num::ParseFloatError;
 use std::ops::AddAssign;
 use std::ops::MulAssign;
 
+// run unit tests with
+// cargo test -- amount
+
+#[derive(Eq, Hash, PartialEq)] // allows us to use Amount as a HashMap key
 pub struct Amount {
     as_int: u32,
 }
 
 impl Amount {
-    fn new(input_string: &str) -> Self {
+    fn new() -> Self {
+        return Amount { as_int: 0 };
+    }
+
+    fn new_from_str(input_string: &str) -> Self {
         let float_from_input = input_string.parse::<f32>();
         let float_res = match float_from_input {
             Ok(number_to_round) => number_to_round,
@@ -49,9 +57,15 @@ impl Display for Amount {
 mod tests {
     use super::*;
     #[test]
-    fn constructor_works() {
-        let am = Amount::new(&"44.12");
+    fn constructor_from_str_works() {
+        let am = Amount::new_from_str(&"44.12");
         assert_eq!(am.as_int, 4412);
+    }
+
+    #[test]
+    fn constructor_default_works() {
+        let am = Amount::new();
+        assert_eq!(am.as_int, 0);
     }
 
     #[test]
