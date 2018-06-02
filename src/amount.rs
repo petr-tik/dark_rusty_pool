@@ -71,27 +71,27 @@ mod tests {
     #[test]
     #[should_panic]
     fn bad_constructor_panics() {
-        Amount::new(&"asda");
+        Amount::new_from_str(&"asda");
     }
 
     #[test]
     fn multiply_by_zero() {
-        let mut am = Amount::new(&"44.12");
+        let mut am = Amount::new_from_str(&"44.12");
         am *= 0;
         assert_eq!(am.as_int, 0);
     }
 
     #[test]
     fn multiply_by_ten() {
-        let mut am = Amount::new(&"44.12");
+        let mut am = Amount::new_from_str(&"44.12");
         am *= 10;
         assert_eq!(am.as_int, 44120);
     }
 
     #[test]
     fn add_two_amounts() {
-        let mut am1 = Amount::new(&"44.12");
-        let am2 = Amount::new(&"45.80");
+        let mut am1 = Amount::new_from_str(&"44.12");
+        let am2 = Amount::new_from_str(&"45.80");
         am1 += am2;
         assert_eq!(am1.as_int, 8992);
     }
