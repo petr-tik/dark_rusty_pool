@@ -95,4 +95,14 @@ mod tests {
         am1 += am2;
         assert_eq!(am1.as_int, 8992);
     }
+
+    #[test]
+    fn display_works() {
+        use std::fmt::Write as FmtWrite;
+        let input_string = "44.12";
+        let am1 = Amount::new_from_str(&input_string);
+        let mut res = String::new();
+        write!(&mut res, "{}", am1).unwrap();
+        assert_eq!(res, input_string);
+    }
 }
