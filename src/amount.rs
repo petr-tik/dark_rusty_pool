@@ -1,53 +1,58 @@
-use std::fmt::Display;
-use std::fmt::Formatter;
-use std::fmt::Result;
-use std::num::ParseFloatError;
-use std::ops::AddAssign;
-use std::ops::MulAssign;
+pub mod amount {
 
-// run unit tests with
-// cargo test -- amount
+    use std::fmt::Display;
+    use std::fmt::Formatter;
+    use std::fmt::Result;
+    use std::num::ParseFloatError;
+    use std::ops::AddAssign;
+    use std::ops::MulAssign;
 
-#[derive(Eq, Hash, PartialEq)] // allows us to use Amount as a HashMap key
-pub struct Amount {
-    as_int: u32,
-}
+    // run unit tests with
+    // cargo test -- amount
 
-impl Amount {
-    fn new() -> Self {
-        return Amount { as_int: 0 };
+    #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)] // allows us to use Amount as a HashMap key
+    pub struct Amount {
+        pub as_int: u32,
     }
 
-    fn new_from_str(input_string: &str) -> Self {
-        let float_from_input = input_string.parse::<f32>();
-        let float_res = match float_from_input {
-            Ok(number_to_round) => number_to_round,
-            Err(ParseFloatError) => panic!("Input string {} doesn't parse as f32", input_string),
-        };
-        let float_times_hundred = float_res * 100.0;
-        let int_res = float_times_hundred.round() as u32;
-        return Amount { as_int: int_res };
+    impl Amount {
+        pub fn new() -> Self {
+            return Amount { as_int: 0 };
+        }
+
+        pub fn new_from_str(input_string: &str) -> Self {
+            let float_from_input = input_string.parse::<f32>();
+            let float_res = match float_from_input {
+                Ok(number_to_round) => number_to_round,
+                Err(ParseFloatError) => {
+                    panic!("Input string {} doesn't parse as f32", input_string)
+                }
+            };
+            let float_times_hundred = float_res * 100.0;
+            let int_res = float_times_hundred.round() as u32;
+            return Amount { as_int: int_res };
+        }
     }
-}
 
-impl AddAssign for Amount {
-    fn add_assign(&mut self, other_amount: Self) {
-        self.as_int += other_amount.as_int;
+    impl AddAssign for Amount {
+        fn add_assign(&mut self, other_amount: Self) {
+            self.as_int += other_amount.as_int;
+        }
     }
-}
 
-impl MulAssign<u32> for Amount {
-    fn mul_assign(&mut self, multiplier: u32) {
-        self.as_int *= multiplier;
+    impl MulAssign<u32> for Amount {
+        fn mul_assign(&mut self, multiplier: u32) {
+            self.as_int *= multiplier;
+        }
     }
-}
 
-impl Display for Amount {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        let quot_x = self.as_int.checked_div(100).unwrap();
-        let rem_x = self.as_int.checked_rem(100).unwrap();
+    impl Display for Amount {
+        fn fmt(&self, f: &mut Formatter) -> Result {
+            let quot_x = self.as_int.checked_div(100).unwrap();
+            let rem_x = self.as_int.checked_rem(100).unwrap();
 
-        write!(f, "{}.{}", quot_x, rem_x)
+            write!(f, "{}.{}", quot_x, rem_x)
+        }
     }
 }
 
@@ -55,7 +60,7 @@ impl Display for Amount {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use amount::amount::*;
     #[test]
     fn constructor_from_str_works() {
         let am = Amount::new_from_str(&"44.12");

@@ -7,6 +7,9 @@ use std::io;
 use std::io::prelude::*;
 use std::result::Result::{Ok, Err};
 
+mod amount;
+use amount::amount::Amount;
+
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum OrderSide {
@@ -55,9 +58,9 @@ impl LimitOrder {
             side: match input_vec[3] {
                 "B" => OrderSide::Bid,
                 "S" => OrderSide::Ask,
-                _ => OrderSide::Bid,
+                _ => panic!("Couldn't parse order side from {}", input_vec[3]),
             },
-            price: float_from_input.round() as i64,
+            price: Amount::new_from_str(&input_vec[4]),
             size: input_vec[5].parse::<i64>().unwrap_or(0),
         };
         return addorder;
@@ -77,7 +80,7 @@ impl LimitOrder {
 
 // #[derive(Default)]
 struct IdPriceCache {
-    cache: HashMap<String, (i64, OrderSide)>,
+    cache: HashMap<String, (Amount, OrderSide)>,
 }
 
 impl IdPriceCache {
@@ -141,13 +144,13 @@ impl OrdersAtPrice {
 
 struct OrderBook {
     cache: IdPriceCache,
-    bids_at_price: BTreeMap<i64, OrdersAtPrice>,
+    bids_at_price: BTreeMap<Amount, OrdersAtPrice>,
     bids_total_size: i64,
-    asks_at_price: BTreeMap<i64, OrdersAtPrice>,
+    asks_at_price: BTreeMap<Amount, OrdersAtPrice>,
     asks_total_size: i64,
     target_size: i64,
     // only 1 side is affected on Reduce or Limit order
-    last_action_side: OrderSide, // which side was touched last
+    last_action_side: OrderSide,   // which side was touched last
     last_action_timestamp: String, // timestamp of last touched side
 }
 
