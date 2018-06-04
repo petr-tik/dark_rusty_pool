@@ -26,8 +26,7 @@ struct ReduceOrder {
 }
 
 impl ReduceOrder {
-    fn new(input_line: &str) -> Self {
-        let input_vec: Vec<&str> = input_line.trim().split(" ").collect();
+    pub fn new(input_vec: Vec<&str>) -> Self {
         let reduce_order = ReduceOrder {
             timestamp: input_vec[0].to_string(),
             id: input_vec[2].to_string(),
@@ -48,9 +47,7 @@ struct LimitOrder {
 }
 
 impl LimitOrder {
-    fn new(input_line: &str) -> Self {
-        let input_vec: Vec<&str> = input_line.trim().split(" ").collect();
-
+    pub fn new(input_vec: Vec<&str>) -> Self {
         let float_from_input = input_vec[4].parse::<f64>().unwrap_or(0.0) * 100.0;
         let addorder = LimitOrder {
             timestamp: input_vec[0].to_string(),
@@ -236,8 +233,8 @@ impl OrderBook {
 fn get_target_size() -> i64 {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
-        // implement error handling
-}
+        panic!("Need target size input");
+    }
     let target_size: i64 = args[1].parse::<i64>().unwrap_or(0);
     
     target_size
@@ -253,9 +250,9 @@ fn main() {
         let unwrapped_line: &str = &order_line.unwrap();
         let order_vec: Vec<&str> = unwrapped_line.trim().split(" ").collect();
         if order_vec[1] == "A" {
-            ob.add(LimitOrder::new(unwrapped_line));
+            ob.add(LimitOrder::new(order_vec));
         } else if order_vec[1] == "R" {
-            ob.reduce_order(ReduceOrder::new(unwrapped_line));
+            ob.reduce_order(ReduceOrder::new(order_vec));
         }
     }
 }
