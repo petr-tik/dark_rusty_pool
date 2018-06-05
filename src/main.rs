@@ -36,14 +36,14 @@ impl ReduceOrder {
     }
 }
 
-#[derive(Clone, Debug)]
-struct LimitOrder {
+#[derive(Clone, Debug, PartialEq)]
+pub struct LimitOrder {
     // "28800538 A b S 44.26 100"
-    timestamp: String,
-    id: String,
-    side: OrderSide,
-    price: i64,
-    size: i64,
+    pub timestamp: String,
+    pub id: String,
+    pub side: OrderSide,
+    pub price: Amount,
+    pub size: i64,
 }
 
 impl LimitOrder {
@@ -186,6 +186,7 @@ impl OrderBook {
             self.asks_total_size += order.size;
         }
         self.cache.insert(&order);
+        self.last_action_timestamp = order.timestamp;
     }
 
     fn reduce_order(&mut self, order: ReduceOrder) {
@@ -199,7 +200,7 @@ impl OrderBook {
          */
 
         let (price, side) = self.cache.cache.get(&order.id).unwrap();
-        self.last_action_timestamp == order.timestamp;
+        self.last_action_timestamp = order.timestamp.clone();
         if side == &OrderSide::Ask {
             self.asks_at_price.get_mut(&price).unwrap().reduce(&order);
             self.asks_total_size -= order.size;
@@ -210,6 +211,7 @@ impl OrderBook {
             self.last_action_side == OrderSide::Bid;
         }
     }
+}
 
     fn summarise_target(&self, target: i64) {
         if target <= self.bids_total_size {
@@ -255,4 +257,116 @@ fn main() {
             ob.reduce_order(ReduceOrder::new(order_vec));
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn orders_at_price_constructor() {
+        let oap = OrdersAtPrice::new();
+        assert_eq!(oap.depth, 0);
+        assert!(oap.orders.is_empty());
+    }
+
+    #[test]
+    fn orders_at_price_add_ask() {
+        let mut oap = OrdersAtPrice::new();
+        let lo = LimitOrder::new("28800538 A b S 44.26 100".split(" ").collect());
+        oap.insert(&lo);
+        assert_eq!(oap.depth, 100);
+        assert_eq!(oap.orders.len(), 1);
+        assert_eq!(oap.orders.front().unwrap(), &lo);
+    }
+
+    #[test]
+    fn orders_at_price_add_and_reduce() {
+        let mut oap = OrdersAtPrice::new();
+        let lo = LimitOrder::new("28800538 A b S 44.26 100".split(" ").collect());
+        oap.insert(&lo);
+        let ro = ReduceOrder::new("28800744 R b 20".split(" ").collect());
+
+        oap.reduce(&ro);
+        let new_lo = LimitOrder::new_from(&lo, lo.size - ro.size);
+        assert_eq!(oap.depth, lo.size - ro.size);
+        assert_eq!(oap.orders.len(), 1);
+        assert_eq!(oap.orders.front().unwrap(), &new_lo);
+    }
+
+    #[test]
+    fn orderbook_constructor_works() {
+        let target_size = 500;
+        let ob = OrderBook::new(target_size);
+        assert_eq!(ob.bids_total_size, 0);
+        assert_eq!(ob.asks_total_size, 0);
+        assert_eq!(ob.target_size, target_size);
+        assert_eq!(ob.last_action_timestamp, "dummy_string");
+        assert_eq!(ob.last_action_side, OrderSide::Bid);
+    }
+
+    #[test]
+    fn orderbook_add_ask() {
+        let target_size = 200;
+        let mut ob = OrderBook::new(target_size);
+        let ask = LimitOrder::new("28800538 A b S 44.26 100".split(" ").collect());
+        ob.add(ask);
+        assert_eq!(ob.asks_total_size, 100);
+        assert_eq!(ob.bids_total_size, 0);
+        assert_eq!(ob.last_action_side, OrderSide::Ask);
+        assert_eq!(ob.last_action_timestamp, "28800538");
+        assert!(ob.cache.cache.contains_key("b"));
+        let price = Amount::new_from_str("44.26");
+        assert!(ob.asks_at_price.contains_key(&price));
+    }
+
+    #[test]
+    fn orderbook_add_bid() {
+        let target_size = 200;
+        let mut ob = OrderBook::new(target_size);
+        let bid = LimitOrder::new("28800538 A b B 44.26 100".split(" ").collect());
+        ob.add(bid);
+        assert_eq!(ob.bids_total_size, 100);
+        assert_eq!(ob.asks_total_size, 0);
+        assert_eq!(ob.last_action_side, OrderSide::Bid);
+        assert_eq!(ob.last_action_timestamp, "28800538");
+        assert!(ob.cache.cache.contains_key("b"));
+        let price = Amount::new_from_str("44.26");
+        assert!(ob.bids_at_price.contains_key(&price));
+    }
+
+    #[test]
+    fn orderbook_reduce_ask() {
+        let target_size = 200;
+        let mut ob = OrderBook::new(target_size);
+        let ask = LimitOrder::new("28800538 A b S 44.26 100".split(" ").collect());
+        ob.add(ask);
+        let ro = ReduceOrder::new("28800744 R b 20".split(" ").collect());
+        ob.reduce_order(ro);
+        assert_eq!(ob.asks_total_size, 80);
+        assert_eq!(ob.bids_total_size, 0);
+        assert_eq!(ob.last_action_side, OrderSide::Ask);
+        assert_eq!(ob.last_action_timestamp, "28800744");
+        assert!(ob.cache.cache.contains_key("b"));
+        let price = Amount::new_from_str("44.26");
+        assert!(ob.asks_at_price.contains_key(&price));
+    }
+
+    #[test]
+    fn orderbook_reduce_bid() {
+        let target_size = 200;
+        let mut ob = OrderBook::new(target_size);
+        let bid = LimitOrder::new("28800538 A b B 44.26 100".split(" ").collect());
+        ob.add(bid);
+        let ro = ReduceOrder::new("28800744 R b 20".split(" ").collect());
+        ob.reduce_order(ro);
+        assert_eq!(ob.bids_total_size, 80);
+        assert_eq!(ob.asks_total_size, 0);
+        assert_eq!(ob.last_action_side, OrderSide::Bid);
+        assert_eq!(ob.last_action_timestamp, "28800744");
+        assert!(ob.cache.cache.contains_key("b"));
+        let price = Amount::new_from_str("44.26");
+        assert!(ob.bids_at_price.contains_key(&price));
+    }
+
 }
