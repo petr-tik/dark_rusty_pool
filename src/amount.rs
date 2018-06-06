@@ -3,7 +3,6 @@ pub mod amount {
     use std::fmt::Display;
     use std::fmt::Formatter;
     use std::fmt::Result;
-    use std::num::ParseFloatError;
     use std::ops::AddAssign;
     use std::ops::Mul;
     use std::ops::MulAssign;
@@ -25,9 +24,7 @@ pub mod amount {
             let float_from_input = input_string.parse::<f64>();
             let float_res = match float_from_input {
                 Ok(number_to_round) => number_to_round,
-                Err(ParseFloatError) => {
-                    panic!("Input string {} doesn't parse as f64", input_string)
-                }
+                Err(err) => panic!("Input string {} doesn't parse as f64 {}", input_string, err),
             };
             let float_times_hundred = float_res * 100.0;
             let int_res = float_times_hundred.round() as i64;

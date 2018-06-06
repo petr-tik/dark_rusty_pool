@@ -58,7 +58,6 @@ pub struct LimitOrder {
 
 impl LimitOrder {
     pub fn new(input_vec: Vec<&str>) -> Self {
-        let float_from_input = input_vec[4].parse::<f64>().unwrap_or(0.0) * 100.0;
         let addorder = LimitOrder {
             timestamp: input_vec[0].to_string(),
             id: input_vec[2].to_string(),
