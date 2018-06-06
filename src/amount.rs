@@ -5,6 +5,7 @@ pub mod amount {
     use std::fmt::Result;
     use std::num::ParseFloatError;
     use std::ops::AddAssign;
+    use std::ops::Mul;
     use std::ops::MulAssign;
 
     // run unit tests with
@@ -12,7 +13,7 @@ pub mod amount {
 
     #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)] // allows us to use Amount as a HashMap key
     pub struct Amount {
-        pub as_int: u32,
+        pub as_int: i64,
     }
 
     impl Amount {
@@ -21,15 +22,15 @@ pub mod amount {
         }
 
         pub fn new_from_str(input_string: &str) -> Self {
-            let float_from_input = input_string.parse::<f32>();
+            let float_from_input = input_string.parse::<f64>();
             let float_res = match float_from_input {
                 Ok(number_to_round) => number_to_round,
                 Err(ParseFloatError) => {
-                    panic!("Input string {} doesn't parse as f32", input_string)
+                    panic!("Input string {} doesn't parse as f64", input_string)
                 }
             };
             let float_times_hundred = float_res * 100.0;
-            let int_res = float_times_hundred.round() as u32;
+            let int_res = float_times_hundred.round() as i64;
             return Amount { as_int: int_res };
         }
     }
@@ -40,9 +41,18 @@ pub mod amount {
         }
     }
 
-    impl MulAssign<u32> for Amount {
-        fn mul_assign(&mut self, multiplier: u32) {
+    impl MulAssign<i64> for Amount {
+        fn mul_assign(&mut self, multiplier: i64) {
             self.as_int *= multiplier;
+        }
+    }
+
+    impl Mul<i64> for Amount {
+        type Output = Self;
+        fn mul(self, rhs: i64) -> Self {
+            Amount {
+                as_int: self.as_int * rhs,
+            }
         }
     }
 
