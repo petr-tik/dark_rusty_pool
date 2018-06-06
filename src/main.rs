@@ -2,6 +2,7 @@ use std::cmp::min;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::LinkedList;
+use std::fmt::{Display, Formatter, Result};
 use std::env;
 use std::io;
 use std::io::prelude::*;
@@ -15,6 +16,15 @@ use amount::amount::Amount;
 enum OrderSide {
     Bid, // buy
     Ask, // sell
+}
+
+impl Display for OrderSide {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match *self {
+            OrderSide::Ask => write!(f, "S"),
+            OrderSide::Bid => write!(f, "B"),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -133,10 +143,6 @@ impl OrdersAtPrice {
         self.orders.push_back(order.clone());
         self.depth += order.size;
     }
-
-    fn amount_earned_or_spent_for(&self, target_size: i64) -> i64 {
-        return self.depth * target_size;
-    }
 }
 
 struct OrderBook {
@@ -211,27 +217,50 @@ impl OrderBook {
             self.last_action_side == OrderSide::Bid;
         }
     }
+
+    fn summarise_target(&self) -> Option<Amount> {
+        if self.bids_total_size >= self.target_size && self.last_action_side == OrderSide::Bid {
+            return Some(self.summarise_amount_from_asks());
+
+        } else if self.asks_total_size >= self.target_size
+            && self.last_action_side == OrderSide::Ask
+        {
+            return Some(self.summarise_amount_from_bids());
+        }
+        None
+    }
+
+    fn summarise_amount_from_asks(&self) -> Amount {
+        let mut res = Amount::new();
+        let mut target_left = self.target_size;
+        for (price, bucket) in self.asks_at_price.iter().rev() {
+            if target_left <= 0 {
+                break;
+            }
+            let available_in_this_bucket = min(bucket.depth, target_left);
+
+            res += *price * available_in_this_bucket;
+            target_left -= available_in_this_bucket;
+            // println!("At price {} we sold {} and now have {} left to sell", *price, available_in_this_bucket, target_left);
+        }
+        res
+    }
+
+    fn summarise_amount_from_bids(&self) -> Amount {
+        let mut res = Amount::new();
+        let mut target_left = self.target_size;
+        for (price, bucket) in self.bids_at_price.iter() {
+            if target_left <= 0 {
+                break;
+            }
+            let available_in_this_bucket = min(bucket.depth, target_left);
+            res += *price * available_in_this_bucket;
+            target_left -= available_in_this_bucket;
+        }
+        res
+    }
 }
 
-    fn summarise_target(&self, target: i64) {
-        if target <= self.bids_total_size {
-            let mut target_left = target;
-            for (price, bucket) in self.bids_at_price.iter() {
-                if target_left <= 0 {
-                    break;
-                }
-                let res = price * min(bucket.depth, target_left);
-                target_left -= bucket.depth;
-                println!("Bought for {} at price {}", res, price);
-            }
-        }
-        if target <= self.asks_total_size {
-            for (price, bucket) in self.asks_at_price.iter().rev() {
-                let res = price * bucket.depth;
-                println!("Sold for {} at price {}", res, price);
-            }
-        }
-    }
 fn get_target_size() -> i64 {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
