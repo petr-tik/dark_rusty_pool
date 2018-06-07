@@ -232,7 +232,7 @@ impl OrderBook {
     fn summarise_amount_from_asks(&self) -> Amount {
         let mut res = Amount::new();
         let mut target_left = self.target_size;
-        for (price, bucket) in self.asks_at_price.iter().rev() {
+        for (price, bucket) in self.asks_at_price.iter() {
             if target_left <= 0 {
                 break;
             }
@@ -240,7 +240,10 @@ impl OrderBook {
 
             res += *price * available_in_this_bucket;
             target_left -= available_in_this_bucket;
-            // println!("At price {} we sold {} and now have {} left to sell", *price, available_in_this_bucket, target_left);
+            eprintln!(
+                "At price {} we bought {} and now have {} left to buy",
+                *price, available_in_this_bucket, target_left
+            );
         }
         res
     }
@@ -248,13 +251,20 @@ impl OrderBook {
     fn summarise_amount_from_bids(&self) -> Amount {
         let mut res = Amount::new();
         let mut target_left = self.target_size;
-        for (price, bucket) in self.bids_at_price.iter() {
+        for (price, bucket) in self.bids_at_price.iter().rev() {
             if target_left <= 0 {
                 break;
+            }
+            if bucket.depth == 0 {
+                continue;
             }
             let available_in_this_bucket = min(bucket.depth, target_left);
             res += *price * available_in_this_bucket;
             target_left -= available_in_this_bucket;
+            eprintln!(
+                "At price {} we sold {} and now have {} left to sell",
+                *price, available_in_this_bucket, target_left
+            );
         }
         res
     }
@@ -283,6 +293,12 @@ fn main() {
             ob.add(LimitOrder::new(order_vec));
         } else if order_vec[1] == "R" {
             ob.reduce_order(ReduceOrder::new(order_vec));
+        }
+        if let Some(res) = ob.summarise_target() {
+            println!(
+                "{} {} {}",
+                ob.last_action_timestamp, ob.last_action_side, res
+            );
         }
     }
 }
