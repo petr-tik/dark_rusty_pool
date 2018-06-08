@@ -116,20 +116,20 @@ impl OrdersAtPrice {
         }
     }
 
-    fn reduce(&mut self, order: &ReduceOrder) {
+    fn reduce(&mut self, reduce_by: &ReduceOrder) {
         let mut order_iter = self.orders.iter_mut();
         while let Some(cur) = order_iter.next() {
-            if cur.id != order.id {
+            if cur.id != reduce_by.id {
                 continue;
             } else {
                 // println!("Found the order to reduce");
-                if order.size >= cur.size {
+                if reduce_by.size >= cur.size {
                     cur.size = 0;
                 } else {
-                    cur.size -= order.size;
+                    cur.size -= reduce_by.size;
                 }
                 // println!("{:?}", cur);
-                self.depth -= order.size;
+                self.depth -= reduce_by.size;
                 break;
             }
         }
