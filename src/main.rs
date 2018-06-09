@@ -284,7 +284,7 @@ fn main() {
         if let Some(res) = ob.summarise_target() {
             println!(
                 "{} {} {}",
-                ob.last_action_timestamp, ob.last_action_side, res
+                ob.last_action_timestamp, !ob.last_action_side, res
             );
         }
     }
