@@ -9,23 +9,10 @@ use std::io::prelude::*;
 use std::result::Result::{Ok, Err};
 
 mod amount;
-use amount::amount::Amount;
+use amount::Amount;
 
-
-#[derive(Copy, Clone, Debug, PartialEq)]
-enum OrderSide {
-    Bid, // buy
-    Ask, // sell
-}
-
-impl Display for OrderSide {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        match *self {
-            OrderSide::Ask => write!(f, "S"),
-            OrderSide::Bid => write!(f, "B"),
-        }
-    }
-}
+mod orderside;
+use orderside::OrderSide;
 
 #[derive(Debug)]
 struct ReduceOrder {

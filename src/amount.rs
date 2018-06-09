@@ -1,65 +1,59 @@
-pub mod amount {
+use std::fmt::{Display, Formatter, Result};
+use std::ops::{AddAssign, Mul, MulAssign};
 
-    use std::fmt::Display;
-    use std::fmt::Formatter;
-    use std::fmt::Result;
-    use std::ops::AddAssign;
-    use std::ops::Mul;
-    use std::ops::MulAssign;
+// run unit tests with
+// cargo test -- amount
 
-    // run unit tests with
-    // cargo test -- amount
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)] // allows us to use Amount as a HashMap key
+pub struct Amount {
+    pub as_int: i64,
+}
 
-    #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)] // allows us to use Amount as a HashMap key
-    pub struct Amount {
-        pub as_int: i64,
+impl Amount {
+    pub fn new() -> Self {
+        return Amount { as_int: 0 };
     }
 
-    impl Amount {
-        pub fn new() -> Self {
-            return Amount { as_int: 0 };
-        }
+    pub fn new_from_str(input_string: &str) -> Self {
+        let float_from_input = input_string.parse::<f64>();
+        let float_res = match float_from_input {
+            Ok(number_to_round) => number_to_round,
+            Err(err) => panic!("Input string {} doesn't parse as f64 {}", input_string, err),
+        };
+        let float_times_hundred = float_res * 100.0;
+        let int_res = float_times_hundred.round() as i64;
+        return Amount { as_int: int_res };
+    }
+}
 
-        pub fn new_from_str(input_string: &str) -> Self {
-            let float_from_input = input_string.parse::<f64>();
-            let float_res = match float_from_input {
-                Ok(number_to_round) => number_to_round,
-                Err(err) => panic!("Input string {} doesn't parse as f64 {}", input_string, err),
-            };
-            let float_times_hundred = float_res * 100.0;
-            let int_res = float_times_hundred.round() as i64;
-            return Amount { as_int: int_res };
+impl AddAssign for Amount {
+    fn add_assign(&mut self, other_amount: Self) {
+        self.as_int += other_amount.as_int;
+    }
+}
+
+impl MulAssign<i64> for Amount {
+    fn mul_assign(&mut self, multiplier: i64) {
+        self.as_int *= multiplier;
+    }
+}
+
+impl Mul<i64> for Amount {
+    type Output = Self;
+    fn mul(self, rhs: i64) -> Self {
+        Amount {
+            as_int: self.as_int * rhs,
         }
     }
+}
 
-    impl AddAssign for Amount {
-        fn add_assign(&mut self, other_amount: Self) {
-            self.as_int += other_amount.as_int;
-        }
-    }
-
-    impl MulAssign<i64> for Amount {
-        fn mul_assign(&mut self, multiplier: i64) {
-            self.as_int *= multiplier;
-        }
-    }
-
-    impl Mul<i64> for Amount {
-        type Output = Self;
-        fn mul(self, rhs: i64) -> Self {
-            Amount {
-                as_int: self.as_int * rhs,
-            }
-        }
-    }
-
-    impl Display for Amount {
-        fn fmt(&self, f: &mut Formatter) -> Result {
-            let quot_x = self.as_int.checked_div(100).unwrap();
-            let rem_x = self.as_int.checked_rem(100).unwrap();
-
-            write!(f, "{}.{}", quot_x, rem_x)
-        }
+impl Display for Amount {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        let repr = self.as_int.to_string();
+        let decimal_points = 2;
+        let idx = repr.len() - decimal_points;
+        let (quot_x, rem_x) = repr.split_at(idx);
+        write!(f, "{}.{}", quot_x, rem_x)
     }
 }
 
@@ -67,7 +61,8 @@ pub mod amount {
 
 #[cfg(test)]
 mod tests {
-    use amount::amount::*;
+    use super::*;
+
     #[test]
     fn constructor_from_str_works() {
         let am = Amount::new_from_str(&"44.12");
