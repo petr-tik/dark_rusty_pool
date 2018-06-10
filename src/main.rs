@@ -152,7 +152,7 @@ impl OrderBook {
             bids_total_size: 0,
             asks_total_size: 0,
             target_size: target_size,
-            last_action_side: OrderSide::Bid,
+            last_action_side: OrderSide::Ask,
             last_action_timestamp: "dummy_string".to_string(),
         }
     }
@@ -196,12 +196,12 @@ impl OrderBook {
         if side == &OrderSide::Ask {
             self.asks_at_price.get_mut(&price).unwrap().reduce(&order);
             self.asks_total_size -= order.size;
-            self.last_action_side == OrderSide::Ask;
         } else if side == &OrderSide::Bid {
             self.bids_at_price.get_mut(&price).unwrap().reduce(&order);
             self.bids_total_size -= order.size;
-            self.last_action_side == OrderSide::Bid;
+
         }
+        self.last_action_side = *side;
     }
 
     fn summarise_target(&self) -> Option<Amount> {
