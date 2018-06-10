@@ -2,11 +2,9 @@ use std::cmp::min;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::LinkedList;
-use std::fmt::{Display, Formatter, Result};
 use std::env;
 use std::io;
 use std::io::prelude::*;
-use std::result::Result::{Ok, Err};
 
 mod amount;
 use amount::Amount;
@@ -23,7 +21,7 @@ struct ReduceOrder {
 }
 
 impl ReduceOrder {
-    pub fn new(input_vec: Vec<&str>) -> Self {
+    fn new(input_vec: Vec<&str>) -> Self {
         let reduce_order = ReduceOrder {
             timestamp: input_vec[0].to_string(),
             id: input_vec[2].to_string(),
@@ -34,17 +32,17 @@ impl ReduceOrder {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct LimitOrder {
+struct LimitOrder {
     // "28800538 A b S 44.26 100"
-    pub timestamp: String,
-    pub id: String,
-    pub side: OrderSide,
-    pub price: Amount,
-    pub size: i64,
+    timestamp: String,
+    id: String,
+    side: OrderSide,
+    price: Amount,
+    size: i64,
 }
 
 impl LimitOrder {
-    pub fn new(input_vec: Vec<&str>) -> Self {
+    fn new(input_vec: Vec<&str>) -> Self {
         let addorder = LimitOrder {
             timestamp: input_vec[0].to_string(),
             id: input_vec[2].to_string(),
@@ -199,7 +197,6 @@ impl OrderBook {
         } else if side == &OrderSide::Bid {
             self.bids_at_price.get_mut(&price).unwrap().reduce(&order);
             self.bids_total_size -= order.size;
-
         }
         self.last_action_side = *side;
     }
@@ -237,12 +234,8 @@ impl OrderBook {
 
             res += *price * available_in_this_bucket;
             target_left -= available_in_this_bucket;
-            eprintln!(
-                "At price {} we bought {} and now have {} left to buy",
-                *price, available_in_this_bucket, target_left
-            );
         }
-        eprintln!("Overall spent {} on buying", res);
+
         res
     }
 
@@ -262,12 +255,7 @@ impl OrderBook {
             let available_in_this_bucket = min(bucket.depth, target_left);
             res += *price * available_in_this_bucket;
             target_left -= available_in_this_bucket;
-            eprintln!(
-                "At price {} we sold {} and now have {} left to sell",
-                *price, available_in_this_bucket, target_left
-            );
         }
-        eprintln!("Overall earned {} from selling", res);
         res
     }
 
@@ -280,7 +268,7 @@ impl OrderBook {
         } else {
             eprintln!("Error processing {}", instruction);
         }
-}
+    }
 }
 
 fn get_target_size() -> i64 {
@@ -308,21 +296,19 @@ fn main() {
     let stdin = io::stdin();
     for order_line in stdin.lock().lines() {
         let unwrapped_line: &str = &order_line.unwrap();
-        eprintln!("\n{}", unwrapped_line);
+
         let order_vec: Vec<&str> = unwrapped_line.trim().split(" ").collect();
         if order_vec[1] == "A" {
             ob.add(LimitOrder::new(order_vec));
         } else if order_vec[1] == "R" {
             ob.reduce_order(ReduceOrder::new(order_vec));
         } else {
-            eprintln!("Error processing {}", unwrapped_line);
             continue;
         }
         let cur = ob.summarise_target();
         let mut prev = reports.get_mut(&!ob.last_action_side).unwrap();
         if cur.is_some() && prev.is_some() {
             if cur.unwrap() != prev.unwrap() {
-                eprintln!("Updating value");
                 println!(
                     "{} {} {}",
                     ob.last_action_timestamp,
@@ -333,7 +319,6 @@ fn main() {
                 continue;
             }
         } else if cur.is_some() && prev.is_none() {
-            eprintln!("Prev was none, new value");
             println!(
                 "{} {} {}",
                 ob.last_action_timestamp,
@@ -341,7 +326,6 @@ fn main() {
                 cur.unwrap()
             );
         } else if cur.is_none() && prev.is_some() {
-            eprintln!("Previous was valid, now None");
             println!("{} {} NA", ob.last_action_timestamp, !ob.last_action_side);
         }
         *prev = cur;
@@ -494,7 +478,6 @@ mod tests {
 
     #[test]
     fn run_through_basic() {
-
         let target_size = 200;
         let mut ob = OrderBook::new(target_size);
         ob.process("28800538 A b S 44.26 100");
@@ -504,7 +487,7 @@ mod tests {
         assert_eq!(ob.last_action_timestamp, "28800538");
         assert!(ob.cache.cache.contains_key("b"));
         assert_eq!(ob.summarise_target(), None);
-        
+
         ob.process("28800562 A c B 44.10 100");
         assert_eq!(ob.asks_total_size, 100);
         assert_eq!(ob.bids_total_size, 100);
@@ -513,7 +496,7 @@ mod tests {
         assert!(ob.cache.cache.contains_key("b"));
         assert!(ob.cache.cache.contains_key("c"));
         assert_eq!(ob.summarise_target(), None);
-        
+
         ob.process("28800744 R b 100");
         assert_eq!(ob.asks_total_size, 0);
         assert_eq!(ob.bids_total_size, 100);
@@ -522,7 +505,7 @@ mod tests {
         assert!(ob.cache.cache.contains_key("b"));
         assert!(ob.cache.cache.contains_key("c"));
         assert_eq!(ob.summarise_target(), None);
-        
+
         ob.process("28800758 A d B 44.18 157");
         assert_eq!(ob.asks_total_size, 0);
         assert_eq!(ob.bids_total_size, 257);
@@ -534,8 +517,5 @@ mod tests {
         assert_eq!(ob.summarise_target(), Some(Amount::new_from_str("8832.56")));
 
         ob.process("28800796 R d 157");
-        
     }
 }
-
-
