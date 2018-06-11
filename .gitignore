@@ -1,3 +1,8 @@
 
 /target
 **/*.rs.bk
+*.gz
+*.in
+*.out
+doc/
+/perf.data
