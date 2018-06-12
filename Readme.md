@@ -76,3 +76,12 @@ Orders are stored in:
 ## Motivation
 
 Inspired by [Ludwig Pacifici's implementation using C++17](https://github.com/ludwigpacifici/order-book-pricer), I decided to learn Rust and implement an order book.
+
+
+### Perf improvements
+
+Benchmarking against the C++ implementation isn't doing my Rust code any favours. Before going into the small details with perf, I think there are several design decisions that can make my life easier. 
+
+  * Don't store full limit orders - just a HashMap of prices to depth.
+  * You only need to track the timestamp of the last event. No need to keep it in the limit order struct.
+  * Code golf - make a generic BTreeMap and instantiate different ones for bids and asks (sort order)
