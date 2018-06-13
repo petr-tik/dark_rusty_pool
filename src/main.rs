@@ -1,7 +1,6 @@
 use std::cmp::min;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
-use std::collections::LinkedList;
 use std::env;
 use std::io;
 use std::io::prelude::*;
@@ -87,53 +86,13 @@ impl IdPriceCache {
     }
 }
 
-#[derive(Debug)]
-struct OrdersAtPrice {
-    orders: LinkedList<LimitOrder>,
-    depth: i64,
-}
-
-impl OrdersAtPrice {
-    fn new() -> Self {
-        OrdersAtPrice {
-            orders: LinkedList::new(),
-            depth: 0,
-        }
-    }
-
-    fn reduce(&mut self, reduce_by: &ReduceOrder) {
-        let mut order_iter = self.orders.iter_mut();
-        while let Some(cur) = order_iter.next() {
-            if cur.id != reduce_by.id {
-                continue;
-            } else {
-                // println!("Found the order to reduce");
-                if reduce_by.size >= cur.size {
-                    cur.size = 0;
-                } else {
-                    cur.size -= reduce_by.size;
-                }
-                // println!("{:?}", cur);
-                self.depth -= reduce_by.size;
-                break;
-            }
-        }
-    }
-
-    fn insert(&mut self, order: &LimitOrder) {
-        /* 
-        Insert a new order into the list. 
-        */
-        self.orders.push_back(order.clone());
-        self.depth += order.size;
-    }
-}
+type Depth = i64;
 
 struct OrderBook {
     cache: IdPriceCache,
-    bids_at_price: BTreeMap<Amount, OrdersAtPrice>,
+    bids_at_price: BTreeMap<Amount, Depth>,
     bids_total_size: i64,
-    asks_at_price: BTreeMap<Amount, OrdersAtPrice>,
+    asks_at_price: BTreeMap<Amount, Depth>,
     asks_total_size: i64,
     target_size: i64,
     // only 1 side is affected on Reduce or Limit order
@@ -159,20 +118,18 @@ impl OrderBook {
         if order.side == OrderSide::Bid {
             self.last_action_side = OrderSide::Bid;
             if self.bids_at_price.contains_key(&order.price) == false {
-                self.bids_at_price.insert(order.price, OrdersAtPrice::new());
+                self.bids_at_price.insert(order.price, 0);
             }
-            let orders_at_given_price: &mut OrdersAtPrice =
-                self.bids_at_price.get_mut(&order.price).unwrap();
-            orders_at_given_price.insert(&order);
+            let orders_at_given_price = self.bids_at_price.get_mut(&order.price).unwrap();
+            *orders_at_given_price += &order.size;
             self.bids_total_size += order.size;
         } else if order.side == OrderSide::Ask {
             self.last_action_side = OrderSide::Ask;
             if self.asks_at_price.contains_key(&order.price) == false {
-                self.asks_at_price.insert(order.price, OrdersAtPrice::new());
+                self.asks_at_price.insert(order.price, 0);
             }
-            let orders_at_given_price: &mut OrdersAtPrice =
-                self.asks_at_price.get_mut(&order.price).unwrap();
-            orders_at_given_price.insert(&order);
+            let orders_at_given_price = self.asks_at_price.get_mut(&order.price).unwrap();
+            *orders_at_given_price += &order.size;
             self.asks_total_size += order.size;
         }
         self.cache.insert(&order);
@@ -180,24 +137,18 @@ impl OrderBook {
     }
 
     fn reduce_order(&mut self, order: ReduceOrder) {
-        /*
-
-        First look up the price and side by the order id,
-        then find the bucket by that price and side 
-        
-        call the reduce method of the orders_at_price
-
-         */
-
-        let (price, side) = self.cache.cache.get(&order.id).unwrap();
-        self.last_action_timestamp = order.timestamp.clone();
+        let (price, side) = match self.cache.cache.get(&order.id) {
+            Some(tup) => (tup),
+            None => panic!("No order under key {}", &order.id),
+        };
         if side == &OrderSide::Ask {
-            self.asks_at_price.get_mut(&price).unwrap().reduce(&order);
+            *self.asks_at_price.get_mut(&price).unwrap() -= &order.size;
             self.asks_total_size -= order.size;
         } else if side == &OrderSide::Bid {
-            self.bids_at_price.get_mut(&price).unwrap().reduce(&order);
+            *self.bids_at_price.get_mut(&price).unwrap() -= &order.size;
             self.bids_total_size -= order.size;
         }
+        self.last_action_timestamp = order.timestamp.clone();
         self.last_action_side = *side;
     }
 
@@ -226,11 +177,14 @@ impl OrderBook {
     fn summarise_amount_from_asks(&self) -> Amount {
         let mut res = Amount::new();
         let mut target_left = self.target_size;
-        for (price, bucket) in self.asks_at_price.iter() {
+        for (price, depth) in self.asks_at_price.iter() {
             if target_left <= 0 {
                 break;
             }
-            let available_in_this_bucket = min(bucket.depth, target_left);
+            if *depth == 0 {
+                continue;
+            }
+            let available_in_this_bucket = min(*depth, target_left);
 
             res += *price * available_in_this_bucket;
             target_left -= available_in_this_bucket;
@@ -245,14 +199,14 @@ impl OrderBook {
         // BTreeMap is sorted in ascending order
         // but you want to sell in descending order
         // (higher is better)
-        for (price, bucket) in self.bids_at_price.iter().rev() {
+        for (price, depth) in self.bids_at_price.iter().rev() {
             if target_left <= 0 {
                 break;
             }
-            if bucket.depth == 0 {
+            if *depth == 0 {
                 continue;
             }
-            let available_in_this_bucket = min(bucket.depth, target_left);
+            let available_in_this_bucket = min(*depth, target_left);
             res += *price * available_in_this_bucket;
             target_left -= available_in_this_bucket;
         }
@@ -282,7 +236,7 @@ fn get_target_size() -> i64 {
     let target_size = match args[1].parse::<i64>() {
         Ok(res) => res,
         Err(_e) => panic!("Couldn't parse input into i64"),
-};
+    };
 
     target_size
 }
@@ -350,37 +304,6 @@ mod tests {
         assert_eq!(lo.side, OrderSide::Ask);
         assert_eq!(lo.price.as_int, 4407);
         assert_eq!(lo.size, 100);
-    }
-
-    #[test]
-    fn orders_at_price_constructor() {
-        let oap = OrdersAtPrice::new();
-        assert_eq!(oap.depth, 0);
-        assert!(oap.orders.is_empty());
-    }
-
-    #[test]
-    fn orders_at_price_add_ask() {
-        let mut oap = OrdersAtPrice::new();
-        let lo = LimitOrder::new("28800538 A b S 44.26 100".split(" ").collect());
-        oap.insert(&lo);
-        assert_eq!(oap.depth, 100);
-        assert_eq!(oap.orders.len(), 1);
-        assert_eq!(oap.orders.front().unwrap(), &lo);
-    }
-
-    #[test]
-    fn orders_at_price_add_and_reduce() {
-        let mut oap = OrdersAtPrice::new();
-        let lo = LimitOrder::new("28800538 A b S 44.26 100".split(" ").collect());
-        oap.insert(&lo);
-        let ro = ReduceOrder::new("28800744 R b 20".split(" ").collect());
-
-        oap.reduce(&ro);
-        let new_lo = LimitOrder::new_from(&lo, lo.size - ro.size);
-        assert_eq!(oap.depth, lo.size - ro.size);
-        assert_eq!(oap.orders.len(), 1);
-        assert_eq!(oap.orders.front().unwrap(), &new_lo);
     }
 
     #[test]
