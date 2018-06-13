@@ -271,12 +271,18 @@ impl OrderBook {
     }
 }
 
+/// Returns the target size for the order book. 
+/// Takes env args and parses them into a i64 
+/// Panics when no target size is provided or parsing fails
 fn get_target_size() -> i64 {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         panic!("Need target size input");
     }
-    let target_size: i64 = args[1].parse::<i64>().unwrap_or(0);
+    let target_size = match args[1].parse::<i64>() {
+        Ok(res) => res,
+        Err(_e) => panic!("Couldn't parse input into i64"),
+};
 
     target_size
 }
