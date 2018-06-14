@@ -253,6 +253,7 @@ fn main() {
     let target_size = get_target_size();
     let mut ob: OrderBook = OrderBook::new(target_size);
     let mut reports = prepare_reports();
+    let stdout = io::stdout();
     let stdin = io::stdin();
     for order_line in stdin.lock().lines() {
         let unwrapped_line: &str = &order_line.unwrap();
@@ -269,7 +270,8 @@ fn main() {
         let mut prev = reports.get_mut(&!ob.last_action_side).unwrap();
         if cur.is_some() && prev.is_some() {
             if cur.unwrap() != prev.unwrap() {
-                println!(
+                writeln!(
+                    stdout.lock(),
                     "{} {} {}",
                     ob.last_action_timestamp,
                     !ob.last_action_side,
@@ -279,14 +281,20 @@ fn main() {
                 continue;
             }
         } else if cur.is_some() && prev.is_none() {
-            println!(
+            writeln!(
+                stdout.lock(),
                 "{} {} {}",
                 ob.last_action_timestamp,
                 !ob.last_action_side,
                 cur.unwrap()
             );
         } else if cur.is_none() && prev.is_some() {
-            println!("{} {} NA", ob.last_action_timestamp, !ob.last_action_side);
+            writeln!(
+                stdout.lock(),
+                "{} {} NA",
+                ob.last_action_timestamp,
+                !ob.last_action_side
+            );
         }
         *prev = cur;
     }
