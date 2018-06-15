@@ -1,10 +1,10 @@
 ## tl;dr
 
-Learnt Rust to implement an order book and compare against another implementation in C++17. My rust application is slower than C++17 - benchmarks to come. Suspect the design is more of a culprit. Order book spec attached to avoid repeating myself.
+Learnt Rust to implement an order book and compare against another implementation in C++17. 
 
 ## Requirements
 
-  * Rust 1.26 - stdlib only
+  * Rust 1.26 (stdlib only)
   * Cargo
 
 ## Test and run
@@ -12,53 +12,45 @@ Learnt Rust to implement an order book and compare against another implementatio
 Git clone and change into the directory, before running the command below. The first argument is the target size of the order book. After that the executable will wait for market data feed on stdin. Conveniently packaged in a shell script.
 
 ```bash
+cargo test
+cargo build --release
+cargo run --release <target_size> < data/<market_data_file>
+```
+
+Test harness from the problem statement. Writes output to a tmp file and compares to expected output. 
+
+```bash
 ./run_basic_test.sh
 ```
 
-## Integration test and benchmark
-
-I compared the output with [Ludwig Pacifici's implementation in C++17](https://github.com/ludwigpacifici/order-book-pricer). We got the same results on pricer.in.gz
-
-```bash
-./run_big_test.sh
-```
-
-I compiled and ran Ludwig's version to another temp file and compared the output. We got the same result.
-
-## Design objective
-
-Keep the complexity of adding and reducing orders within a predictable range - minimise jitter. Orders are stored in LinkedLists inside ordered maps. Each linked list is indexable by the price of the order. 
-
 ## Design
 
-The order book consists of 5 attributes and 4 data structures. 
+The order book allows adding new orders, reducing current ones and printing the amount earned from selling <target\_size> of shares or amount spent on buying <target\_size> of shares.
 
 ```rust
+type Depth = i64;
+
 struct OrderBook {
     cache: IdPriceCache,
-    bids_at_price: BTreeMap<Amount, OrdersAtPrice>,
+    bids_at_price: BTreeMap<Amount, Depth>,
     bids_total_size: i64,
-    asks_at_price: BTreeMap<Amount, OrdersAtPrice>,
+    asks_at_price: BTreeMap<Amount, Depth>,
     asks_total_size: i64,
     target_size: i64,
     // only 1 side is affected on Reduce or Limit order
     last_action_side: OrderSide,   // which side was touched last
-    last_action_timestamp: String, // timestamp of last touched side
+    last_action_timestamp: String, // timestamp of last touched side,
 }
 ```
 
-the BTreeMap takes most of the load on adding. 
-
 ### Adding a new limit order
 
-Appending to the LinkedList is O(1), so the most expensive operation is indexing into the right linked list - find by price.
+Parse the price point (input as float) and quantity (relevant optimisation below). Find the relevant order side and insert the key-value pair of price - depth. Update the last action side and last action timestamp as well. 
 
-Each linked list also keeps track of total depth of orders at a given price. This becomes useful for checking and reporting.
 
 ### Reducing an order
 
-Using the order id, look up in cache, the side and price of the order. Find the relevant LinkedList inside the ordered map of the given side, reduce the order by walking over the linked list until the given node is found. 
-
+Using the order id, look up in cache, the side and price of the order. Find the relevant bucket inside the ordered map of the given side, decrement the depth of the bucket.
 
 ### Checking and reporting
 
@@ -71,17 +63,42 @@ Keeping total depth per price, gives us a shortcut to quickly calculate how much
 Orders are stored in:
 
   * cache to look up price and side by order id
-  * Ordered map (BTreeMap) of prices to OrdersAtPrice (doubly linked list)
+  * Ordered map (BTreeMap) of prices to depths.
 
 ## Motivation
 
 Inspired by [Ludwig Pacifici's implementation using C++17](https://github.com/ludwigpacifici/order-book-pricer), I decided to learn Rust and implement an order book.
 
+### Already implemented perf improvements
 
-### Perf improvements
+Benchmarking my first implementation against Ludwig's C++17 version showed that my design was terrible. Performance optimisations that I made (chronological order):
 
-Benchmarking against the C++ implementation isn't doing my Rust code any favours. Before going into the small details with perf, I think there are several design decisions that can make my life easier. 
+0. Realised this from the start - turn floats into ints. FP arithmetic is more CPU-intensive. For printing - have a function that turns int into a string, splits the string and prints last 2 chars in the string after the `.`.
 
-  * Don't store full limit orders - just a HashMap of prices to depth.
-  * You only need to track the timestamp of the last event. No need to keep it in the limit order struct.
-  * Code golf - make a generic BTreeMap and instantiate different ones for bids and asks (sort order)
+1. First implementation stored full limit order structs in Linked Lists in BTreeMaps. Linked list nodes were heap-allocated and blew the cache efficiency of my algrorithm. Ultimatelly, it's not necessary to keep the exact order. I now use the BTreeMap as a key value store between price point and depth of order book at that price point.
+
+2. After running `collect_perf` and `perf report`, I found that println! was taking 8.96% of time. Googling for efficient stdout printing in Rust suggested replacing println! with writeln! with a stdout lock as one of the args. 
+
+### Current benchmark
+
+```bash
+./time_rust_pricer.sh
+...
+real	0m2.206s
+user	0m1.988s
+sys	    0m0.185s
+```
+
+### Potential perf improvements - yet to be investigated
+
+1. Wherever feasible replace `String` with `&str`. Consider the lifetime of strings like order ID and order timestamps and implement an efficient way instead of using `to_string()` and `clone()`, which defeat the advantage of rust. 
+Pros:
+    * most of my strings are read-only - should work well and reduce memory usage.
+    * Learn about lifetimes and borrowing in Rust
+Cons:
+    * learning about said lifetimes and borrowing will pit me against the infamous borrow checker.
+
+2. Currently - reducing an order into oblivion (eg. reduce an order of size 100, by >100) doesn't remove its key from the IdPriceCache. This leads to higher memory usage. It might be useful to remove the key-value pair, if the order is ever completely reduced. Requires adding order size to the IdOrderPrice cache and decrementing it after every reduce. Will turn OrderBook.reduce() into reducing 2 internal states - not a pretty abstraction.
+Pros: 
+    * if a lookup of previously-deleted key occurs, we can end that branch of logic quickly. Unlikely to occur - clients shouldn't ask to reduce the same order twice.
+    * Prevents the BTreeMap from growing too much. Shouldn't matter too much, but on big applications, it's worth preserving heap space for ids with valid data.
