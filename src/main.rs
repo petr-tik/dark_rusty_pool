@@ -142,11 +142,15 @@ impl OrderBook {
             None => panic!("No order under key {}", &order.id),
         };
         if side == &OrderSide::Ask {
-            *self.asks_at_price.get_mut(&price).unwrap() -= &order.size;
-            self.asks_total_size -= order.size;
+            if let Some(depth) = self.asks_at_price.get_mut(&price) {
+                *depth -= &order.size;
+                self.asks_total_size -= order.size;
+            }
         } else if side == &OrderSide::Bid {
-            *self.bids_at_price.get_mut(&price).unwrap() -= &order.size;
-            self.bids_total_size -= order.size;
+            if let Some(depth) = self.bids_at_price.get_mut(&price) {
+                *depth -= &order.size;
+                self.bids_total_size -= order.size;
+            }
         }
         self.last_action_timestamp = order.timestamp.clone();
         self.last_action_side = *side;
