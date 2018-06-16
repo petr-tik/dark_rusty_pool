@@ -84,21 +84,24 @@ Benchmarking my first implementation against Ludwig's C++17 version showed that 
 ```bash
 ./time_rust_pricer.sh
 ...
-real	0m2.206s
-user	0m1.988s
-sys	    0m0.185s
+real	0m2.104s
+user	0m1.970s
+sys	0m0.128s
 ```
 
 ### Potential perf improvements - yet to be investigated
 
 1. Wherever feasible replace `String` with `&str`. Consider the lifetime of strings like order ID and order timestamps and implement an efficient way instead of using `to_string()` and `clone()`, which defeat the advantage of rust. 
+
 Pros:
     * most of my strings are read-only - should work well and reduce memory usage.
     * Learn about lifetimes and borrowing in Rust
+
 Cons:
     * learning about said lifetimes and borrowing will pit me against the infamous borrow checker.
 
 2. Currently - reducing an order into oblivion (eg. reduce an order of size 100, by >100) doesn't remove its key from the IdPriceCache. This leads to higher memory usage. It might be useful to remove the key-value pair, if the order is ever completely reduced. Requires adding order size to the IdOrderPrice cache and decrementing it after every reduce. Will turn OrderBook.reduce() into reducing 2 internal states - not a pretty abstraction.
+
 Pros: 
     * if a lookup of previously-deleted key occurs, we can end that branch of logic quickly. Unlikely to occur - clients shouldn't ask to reduce the same order twice.
     * Prevents the BTreeMap from growing too much. Shouldn't matter too much, but on big applications, it's worth preserving heap space for ids with valid data.
