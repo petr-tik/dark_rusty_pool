@@ -1,3 +1,7 @@
+#![feature(test)]
+extern crate test;
+extern crate fnv;
+
 use std::cmp::min;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -67,29 +71,44 @@ impl LimitOrder {
         return order;
     }
 }
-
-// #[derive(Default)]
-struct IdPriceCache {
-    cache: HashMap<String, (Amount, OrderSide)>,
+/// Price cache strategy (for benchmarking)
+trait IdPriceCache{
+    fn insert(&mut self,order:&LimitOrder);
+    fn contains_key(&self,key:&str)->bool;
+    fn get(&self,key:&str)->Option<&(Amount, OrderSide)>;
 }
-
-impl IdPriceCache {
-    fn new() -> Self {
-        IdPriceCache {
-            cache: HashMap::new(),
-        }
+type IdPriceCacheDefaultMap =HashMap<String, (Amount, OrderSide)>;
+impl IdPriceCache for IdPriceCacheDefaultMap {
+    fn insert(&mut self, order: &LimitOrder) {
+        self.insert(order.id.clone(), (order.price, order.side));
     }
 
+    fn contains_key(&self, key: &str) -> bool {
+        self.contains_key(key)
+    }
+
+    fn get(&self, key: &str) -> Option<&(Amount, OrderSide)> {
+        self.get(key)
+    }
+}
+
+type IdPriceCacheFnvMap =fnv::FnvHashMap<String, (Amount, OrderSide)>;
+impl IdPriceCache for IdPriceCacheFnvMap {
     fn insert(&mut self, order: &LimitOrder) {
-        self.cache
-            .insert(order.id.clone(), (order.price, order.side));
+        self.insert(order.id.clone(), (order.price, order.side));
+    }
+    fn contains_key(&self, key: &str) -> bool {
+        self.contains_key(key)
+    }
+    fn get(&self, key: &str) -> Option<&(Amount, OrderSide)> {
+        self.get(key)
     }
 }
 
 type Depth = i64;
 
-struct OrderBook {
-    cache: IdPriceCache,
+struct OrderBook<T:IdPriceCache+Sized> {
+    cache: T,
     bids_at_price: BTreeMap<Amount, Depth>,
     bids_total_size: i64,
     asks_at_price: BTreeMap<Amount, Depth>,
@@ -100,10 +119,10 @@ struct OrderBook {
     last_action_timestamp: String, // timestamp of last touched side
 }
 
-impl OrderBook {
-    fn new(target_size: i64) -> Self {
+impl<T:IdPriceCache+Sized> OrderBook<T> {
+    fn new(target_size: i64,cache:T) -> Self {
         OrderBook {
-            cache: IdPriceCache::new(),
+            cache,
             bids_at_price: BTreeMap::new(),
             asks_at_price: BTreeMap::new(),
             bids_total_size: 0,
@@ -137,7 +156,7 @@ impl OrderBook {
     }
 
     fn reduce_order(&mut self, order: ReduceOrder) {
-        let (price, side) = match self.cache.cache.get(&order.id) {
+        let (price, side) = match self.cache.get(&order.id) {
             Some(tup) => (tup),
             None => panic!("No order under key {}", &order.id),
         };
@@ -255,7 +274,7 @@ fn prepare_reports() -> HashMap<OrderSide, Option<Amount>> {
 
 fn main() {
     let target_size = get_target_size();
-    let mut ob: OrderBook = OrderBook::new(target_size);
+    let mut ob= OrderBook::new(target_size,IdPriceCacheDefaultMap::default());
     let mut reports = prepare_reports();
     let stdout = io::stdout();
     let stdin = io::stdin();
@@ -280,7 +299,7 @@ fn main() {
                     ob.last_action_timestamp,
                     !ob.last_action_side,
                     cur.unwrap()
-                );
+                ).expect("cannot lock");
             } else {
                 continue;
             }
@@ -291,14 +310,14 @@ fn main() {
                 ob.last_action_timestamp,
                 !ob.last_action_side,
                 cur.unwrap()
-            );
+            ).expect("cannot lock");
         } else if cur.is_none() && prev.is_some() {
             writeln!(
                 stdout.lock(),
                 "{} {} NA",
                 ob.last_action_timestamp,
                 !ob.last_action_side
-            );
+            ).expect("cannot lock");
         }
         *prev = cur;
     }
@@ -307,6 +326,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test::Bencher;
 
     #[test]
     fn limit_order_constructor() {
@@ -321,7 +341,7 @@ mod tests {
     #[test]
     fn orderbook_constructor_works() {
         let target_size = 500;
-        let ob = OrderBook::new(target_size);
+        let ob = OrderBook::new(target_size,IdPriceCacheDefaultMap::default());
         assert_eq!(ob.bids_total_size, 0);
         assert_eq!(ob.asks_total_size, 0);
         assert_eq!(ob.target_size, target_size);
@@ -332,7 +352,7 @@ mod tests {
     #[test]
     fn orderbook_add_ask() {
         let target_size = 200;
-        let mut ob = OrderBook::new(target_size);
+        let mut ob = OrderBook::new(target_size,IdPriceCacheDefaultMap::default());
         let ask = LimitOrder::new("28800538 A b S 44.26 100".split(" ").collect());
         ob.add(ask);
         assert_eq!(ob.asks_total_size, 100);
@@ -340,7 +360,7 @@ mod tests {
         assert_eq!(ob.summarise_target(), None);
         assert_eq!(ob.last_action_side, OrderSide::Ask);
         assert_eq!(ob.last_action_timestamp, "28800538");
-        assert!(ob.cache.cache.contains_key("b"));
+        assert!(ob.cache.contains_key("b"));
         let price = Amount::new_from_str("44.26");
         assert!(ob.asks_at_price.contains_key(&price));
     }
@@ -348,7 +368,7 @@ mod tests {
     #[test]
     fn orderbook_add_bid() {
         let target_size = 200;
-        let mut ob = OrderBook::new(target_size);
+        let mut ob = OrderBook::new(target_size,IdPriceCacheDefaultMap::default());
         let bid = LimitOrder::new("28800538 A b B 44.26 100".split(" ").collect());
         ob.add(bid);
         assert_eq!(ob.bids_total_size, 100);
@@ -356,7 +376,7 @@ mod tests {
         assert_eq!(ob.summarise_target(), None);
         assert_eq!(ob.last_action_side, OrderSide::Bid);
         assert_eq!(ob.last_action_timestamp, "28800538");
-        assert!(ob.cache.cache.contains_key("b"));
+        assert!(ob.cache.contains_key("b"));
         let price = Amount::new_from_str("44.26");
         assert!(ob.bids_at_price.contains_key(&price));
     }
@@ -364,7 +384,7 @@ mod tests {
     #[test]
     fn orderbook_reduce_ask() {
         let target_size = 200;
-        let mut ob = OrderBook::new(target_size);
+        let mut ob = OrderBook::new(target_size,IdPriceCacheDefaultMap::default());
         let ask = LimitOrder::new("28800538 A b S 44.26 100".split(" ").collect());
         ob.add(ask);
         let ro = ReduceOrder::new("28800744 R b 20".split(" ").collect());
@@ -374,7 +394,7 @@ mod tests {
         assert_eq!(ob.summarise_target(), None);
         assert_eq!(ob.last_action_side, OrderSide::Ask);
         assert_eq!(ob.last_action_timestamp, "28800744");
-        assert!(ob.cache.cache.contains_key("b"));
+        assert!(ob.cache.contains_key("b"));
         let price = Amount::new_from_str("44.26");
         assert!(ob.asks_at_price.contains_key(&price));
     }
@@ -382,7 +402,7 @@ mod tests {
     #[test]
     fn orderbook_reduce_bid() {
         let target_size = 200;
-        let mut ob = OrderBook::new(target_size);
+        let mut ob = OrderBook::new(target_size,IdPriceCacheDefaultMap::default());
         let bid = LimitOrder::new("28800538 A b B 44.26 100".split(" ").collect());
         ob.add(bid);
         let ro = ReduceOrder::new("28800744 R b 20".split(" ").collect());
@@ -392,7 +412,7 @@ mod tests {
         assert_eq!(ob.last_action_side, OrderSide::Bid);
         assert_eq!(ob.last_action_timestamp, "28800744");
         assert_eq!(ob.summarise_target(), None);
-        assert!(ob.cache.cache.contains_key("b"));
+        assert!(ob.cache.contains_key("b"));
         let price = Amount::new_from_str("44.26");
         assert!(ob.bids_at_price.contains_key(&price));
     }
@@ -400,7 +420,7 @@ mod tests {
     #[test]
     fn orderbook_add_reduce_add() {
         let target_size = 200;
-        let mut ob = OrderBook::new(target_size);
+        let mut ob = OrderBook::new(target_size,IdPriceCacheDefaultMap::default());
         let bid = LimitOrder::new("28800538 A b B 44.26 100".split(" ").collect());
         ob.add(bid);
         let ro = ReduceOrder::new("28800744 R b 20".split(" ").collect());
@@ -412,21 +432,21 @@ mod tests {
         assert_eq!(ob.asks_total_size, 0);
         assert_eq!(ob.last_action_side, OrderSide::Bid);
         assert_eq!(ob.last_action_timestamp, "28800986");
-        assert!(ob.cache.cache.contains_key("b"));
-        assert!(ob.cache.cache.contains_key("c"));
+        assert!(ob.cache.contains_key("b"));
+        assert!(ob.cache.contains_key("c"));
         assert_eq!(ret, Some(Amount::new_from_str("8829.20")));
     }
 
     #[test]
     fn run_through_basic() {
         let target_size = 200;
-        let mut ob = OrderBook::new(target_size);
+        let mut ob = OrderBook::new(target_size,IdPriceCacheDefaultMap::default());
         ob.process("28800538 A b S 44.26 100");
         assert_eq!(ob.asks_total_size, 100);
         assert_eq!(ob.bids_total_size, 0);
         assert_eq!(ob.last_action_side, OrderSide::Ask);
         assert_eq!(ob.last_action_timestamp, "28800538");
-        assert!(ob.cache.cache.contains_key("b"));
+        assert!(ob.cache.contains_key("b"));
         assert_eq!(ob.summarise_target(), None);
 
         ob.process("28800562 A c B 44.10 100");
@@ -434,8 +454,8 @@ mod tests {
         assert_eq!(ob.bids_total_size, 100);
         assert_eq!(ob.last_action_side, OrderSide::Bid);
         assert_eq!(ob.last_action_timestamp, "28800562");
-        assert!(ob.cache.cache.contains_key("b"));
-        assert!(ob.cache.cache.contains_key("c"));
+        assert!(ob.cache.contains_key("b"));
+        assert!(ob.cache.contains_key("c"));
         assert_eq!(ob.summarise_target(), None);
 
         ob.process("28800744 R b 100");
@@ -443,8 +463,8 @@ mod tests {
         assert_eq!(ob.bids_total_size, 100);
         assert_eq!(ob.last_action_side, OrderSide::Ask);
         assert_eq!(ob.last_action_timestamp, "28800744");
-        assert!(ob.cache.cache.contains_key("b"));
-        assert!(ob.cache.cache.contains_key("c"));
+        assert!(ob.cache.contains_key("b"));
+        assert!(ob.cache.contains_key("c"));
         assert_eq!(ob.summarise_target(), None);
 
         ob.process("28800758 A d B 44.18 157");
@@ -452,11 +472,63 @@ mod tests {
         assert_eq!(ob.bids_total_size, 257);
         assert_eq!(ob.last_action_side, OrderSide::Bid);
         assert_eq!(ob.last_action_timestamp, "28800758");
-        assert!(ob.cache.cache.contains_key("b"));
-        assert!(ob.cache.cache.contains_key("c"));
-        assert!(ob.cache.cache.contains_key("d"));
+        assert!(ob.cache.contains_key("b"));
+        assert!(ob.cache.contains_key("c"));
+        assert!(ob.cache.contains_key("d"));
         assert_eq!(ob.summarise_target(), Some(Amount::new_from_str("8832.56")));
 
         ob.process("28800796 R d 157");
     }
+
+    fn do_it<T:IdPriceCache+Sized>(ob:&mut OrderBook<T>){
+        ob.process("28800538 A b S 44.26 100");
+        assert_eq!(ob.asks_total_size, 100);
+        assert_eq!(ob.bids_total_size, 0);
+        assert_eq!(ob.last_action_side, OrderSide::Ask);
+        assert_eq!(ob.last_action_timestamp, "28800538");
+        assert!(ob.cache.contains_key("b"));
+        assert_eq!(ob.summarise_target(), None);
+
+        ob.process("28800562 A c B 44.10 100");
+        assert_eq!(ob.asks_total_size, 100);
+        assert_eq!(ob.bids_total_size, 100);
+        assert_eq!(ob.last_action_side, OrderSide::Bid);
+        assert_eq!(ob.last_action_timestamp, "28800562");
+        assert!(ob.cache.contains_key("b"));
+        assert!(ob.cache.contains_key("c"));
+        assert_eq!(ob.summarise_target(), None);
+
+        ob.process("28800744 R b 100");
+        assert_eq!(ob.asks_total_size, 0);
+        assert_eq!(ob.bids_total_size, 100);
+        assert_eq!(ob.last_action_side, OrderSide::Ask);
+        assert_eq!(ob.last_action_timestamp, "28800744");
+        assert!(ob.cache.contains_key("b"));
+        assert!(ob.cache.contains_key("c"));
+        assert_eq!(ob.summarise_target(), None);
+
+        ob.process("28800758 A d B 44.18 157");
+        assert_eq!(ob.asks_total_size, 0);
+        assert_eq!(ob.bids_total_size, 257);
+        assert_eq!(ob.last_action_side, OrderSide::Bid);
+        assert_eq!(ob.last_action_timestamp, "28800758");
+        assert!(ob.cache.contains_key("b"));
+        assert!(ob.cache.contains_key("c"));
+        assert!(ob.cache.contains_key("d"));
+        assert_eq!(ob.summarise_target(), Some(Amount::new_from_str("8832.56")));
+
+        ob.process("28800796 R d 157");
+    }
+
+    #[bench]
+    fn bench_default_ordermap(b: &mut Bencher) {
+        b.iter(|| do_it(&mut OrderBook::new(200, IdPriceCacheDefaultMap::default())));
+    }
+
+    #[bench]
+    fn bench_fnv_ordermap(b: &mut Bencher) {
+        b.iter(|| do_it(&mut OrderBook::new(200, IdPriceCacheFnvMap ::default())));
+    }
+
+
 }
