@@ -70,12 +70,13 @@ impl LimitOrder {
     }
 }
 /// Price cache strategy (for benchmarking)
-trait IdPriceCache{
-    fn insert(&mut self,order:&LimitOrder);
-    fn contains_key(&self,key:&str)->bool;
-    fn get(&self,key:&str)->Option<&(Amount, OrderSide)>;
+trait IdPriceCache {
+    fn insert(&mut self, order: &LimitOrder);
+    fn contains_key(&self, key: &str) -> bool;
+    fn get(&self, key: &str) -> Option<&(Amount, OrderSide)>;
 }
-type IdPriceCacheDefaultMap =HashMap<String, (Amount, OrderSide)>;
+
+type IdPriceCacheDefaultMap = HashMap<String, (Amount, OrderSide)>;
 impl IdPriceCache for IdPriceCacheDefaultMap {
     fn insert(&mut self, order: &LimitOrder) {
         self.insert(order.id.clone(), (order.price, order.side));
@@ -90,7 +91,7 @@ impl IdPriceCache for IdPriceCacheDefaultMap {
     }
 }
 
-type IdPriceCacheFnvMap =fnv::FnvHashMap<String, (Amount, OrderSide)>;
+type IdPriceCacheFnvMap = fnv::FnvHashMap<String, (Amount, OrderSide)>;
 impl IdPriceCache for IdPriceCacheFnvMap {
     fn insert(&mut self, order: &LimitOrder) {
         self.insert(order.id.clone(), (order.price, order.side));
@@ -105,7 +106,7 @@ impl IdPriceCache for IdPriceCacheFnvMap {
 
 type Depth = i64;
 
-struct OrderBook<T:IdPriceCache+Sized> {
+struct OrderBook<T: IdPriceCache + Sized> {
     cache: T,
     bids_at_price: BTreeMap<Amount, Depth>,
     bids_total_size: i64,
@@ -117,8 +118,8 @@ struct OrderBook<T:IdPriceCache+Sized> {
     last_action_timestamp: String, // timestamp of last touched side
 }
 
-impl<T:IdPriceCache+Sized> OrderBook<T> {
-    fn new(target_size: i64,cache:T) -> Self {
+impl<T: IdPriceCache + Sized> OrderBook<T> {
+    fn new(target_size: i64, cache: T) -> Self {
         OrderBook {
             cache,
             bids_at_price: BTreeMap::new(),
@@ -246,8 +247,8 @@ impl<T:IdPriceCache+Sized> OrderBook<T> {
     }
 }
 
-/// Returns the target size for the order book. 
-/// Takes env args and parses them into a i64 
+/// Returns the target size for the order book.
+/// Takes env args and parses them into a i64
 /// Panics when no target size is provided or parsing fails
 fn get_target_size() -> i64 {
     let args: Vec<String> = env::args().collect();
@@ -272,7 +273,7 @@ fn prepare_reports() -> HashMap<OrderSide, Option<Amount>> {
 
 fn main() {
     let target_size = get_target_size();
-    let mut ob= OrderBook::new(target_size,IdPriceCacheDefaultMap::default());
+    let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
     let mut reports = prepare_reports();
     let stdout = io::stdout();
     let stdin = io::stdin();
@@ -338,7 +339,7 @@ mod tests {
     #[test]
     fn orderbook_constructor_works() {
         let target_size = 500;
-        let ob = OrderBook::new(target_size,IdPriceCacheDefaultMap::default());
+        let ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
         assert_eq!(ob.bids_total_size, 0);
         assert_eq!(ob.asks_total_size, 0);
         assert_eq!(ob.target_size, target_size);
@@ -349,7 +350,7 @@ mod tests {
     #[test]
     fn orderbook_add_ask() {
         let target_size = 200;
-        let mut ob = OrderBook::new(target_size,IdPriceCacheDefaultMap::default());
+        let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
         let ask = LimitOrder::new("28800538 A b S 44.26 100".split(" ").collect());
         ob.add(ask);
         assert_eq!(ob.asks_total_size, 100);
@@ -365,7 +366,7 @@ mod tests {
     #[test]
     fn orderbook_add_bid() {
         let target_size = 200;
-        let mut ob = OrderBook::new(target_size,IdPriceCacheDefaultMap::default());
+        let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
         let bid = LimitOrder::new("28800538 A b B 44.26 100".split(" ").collect());
         ob.add(bid);
         assert_eq!(ob.bids_total_size, 100);
@@ -381,7 +382,7 @@ mod tests {
     #[test]
     fn orderbook_reduce_ask() {
         let target_size = 200;
-        let mut ob = OrderBook::new(target_size,IdPriceCacheDefaultMap::default());
+        let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
         let ask = LimitOrder::new("28800538 A b S 44.26 100".split(" ").collect());
         ob.add(ask);
         let ro = ReduceOrder::new("28800744 R b 20".split(" ").collect());
@@ -399,7 +400,7 @@ mod tests {
     #[test]
     fn orderbook_reduce_bid() {
         let target_size = 200;
-        let mut ob = OrderBook::new(target_size,IdPriceCacheDefaultMap::default());
+        let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
         let bid = LimitOrder::new("28800538 A b B 44.26 100".split(" ").collect());
         ob.add(bid);
         let ro = ReduceOrder::new("28800744 R b 20".split(" ").collect());
@@ -417,7 +418,7 @@ mod tests {
     #[test]
     fn orderbook_add_reduce_add() {
         let target_size = 200;
-        let mut ob = OrderBook::new(target_size,IdPriceCacheDefaultMap::default());
+        let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
         let bid = LimitOrder::new("28800538 A b B 44.26 100".split(" ").collect());
         ob.add(bid);
         let ro = ReduceOrder::new("28800744 R b 20".split(" ").collect());
@@ -437,7 +438,7 @@ mod tests {
     #[test]
     fn run_through_basic() {
         let target_size = 200;
-        let mut ob = OrderBook::new(target_size,IdPriceCacheDefaultMap::default());
+        let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
         ob.process("28800538 A b S 44.26 100");
         assert_eq!(ob.asks_total_size, 100);
         assert_eq!(ob.bids_total_size, 0);
