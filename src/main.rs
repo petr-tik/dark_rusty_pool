@@ -1,5 +1,3 @@
-#![feature(test)]
-extern crate test;
 extern crate fnv;
 
 use std::cmp::min;
@@ -326,7 +324,6 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test::Bencher;
 
     #[test]
     fn limit_order_constructor() {
@@ -479,56 +476,5 @@ mod tests {
 
         ob.process("28800796 R d 157");
     }
-
-    fn do_it<T:IdPriceCache+Sized>(ob:&mut OrderBook<T>){
-        ob.process("28800538 A b S 44.26 100");
-        assert_eq!(ob.asks_total_size, 100);
-        assert_eq!(ob.bids_total_size, 0);
-        assert_eq!(ob.last_action_side, OrderSide::Ask);
-        assert_eq!(ob.last_action_timestamp, "28800538");
-        assert!(ob.cache.contains_key("b"));
-        assert_eq!(ob.summarise_target(), None);
-
-        ob.process("28800562 A c B 44.10 100");
-        assert_eq!(ob.asks_total_size, 100);
-        assert_eq!(ob.bids_total_size, 100);
-        assert_eq!(ob.last_action_side, OrderSide::Bid);
-        assert_eq!(ob.last_action_timestamp, "28800562");
-        assert!(ob.cache.contains_key("b"));
-        assert!(ob.cache.contains_key("c"));
-        assert_eq!(ob.summarise_target(), None);
-
-        ob.process("28800744 R b 100");
-        assert_eq!(ob.asks_total_size, 0);
-        assert_eq!(ob.bids_total_size, 100);
-        assert_eq!(ob.last_action_side, OrderSide::Ask);
-        assert_eq!(ob.last_action_timestamp, "28800744");
-        assert!(ob.cache.contains_key("b"));
-        assert!(ob.cache.contains_key("c"));
-        assert_eq!(ob.summarise_target(), None);
-
-        ob.process("28800758 A d B 44.18 157");
-        assert_eq!(ob.asks_total_size, 0);
-        assert_eq!(ob.bids_total_size, 257);
-        assert_eq!(ob.last_action_side, OrderSide::Bid);
-        assert_eq!(ob.last_action_timestamp, "28800758");
-        assert!(ob.cache.contains_key("b"));
-        assert!(ob.cache.contains_key("c"));
-        assert!(ob.cache.contains_key("d"));
-        assert_eq!(ob.summarise_target(), Some(Amount::new_from_str("8832.56")));
-
-        ob.process("28800796 R d 157");
-    }
-
-    #[bench]
-    fn bench_default_ordermap(b: &mut Bencher) {
-        b.iter(|| do_it(&mut OrderBook::new(200, IdPriceCacheDefaultMap::default())));
-    }
-
-    #[bench]
-    fn bench_fnv_ordermap(b: &mut Bencher) {
-        b.iter(|| do_it(&mut OrderBook::new(200, IdPriceCacheFnvMap ::default())));
-    }
-
 
 }
