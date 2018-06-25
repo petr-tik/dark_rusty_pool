@@ -11,7 +11,7 @@ pub struct Amount {
 
 impl Amount {
     pub fn new() -> Self {
-        return Amount { as_int: 0 };
+        Amount { as_int: 0 }
     }
 
     pub fn new_from_str(input_string: &str) -> Self {
@@ -22,7 +22,7 @@ impl Amount {
         };
         let float_times_hundred = float_res * 100.0;
         let int_res = float_times_hundred.round() as i64;
-        return Amount { as_int: int_res };
+        Amount { as_int: int_res }
     }
 }
 

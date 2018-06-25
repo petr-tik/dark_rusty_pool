@@ -23,12 +23,11 @@ struct ReduceOrder {
 
 impl ReduceOrder {
     fn new(input_vec: Vec<&str>) -> Self {
-        let reduce_order = ReduceOrder {
+        ReduceOrder {
             timestamp: input_vec[0].to_string(),
             id: input_vec[2].to_string(),
             size: input_vec[3].parse::<i64>().unwrap_or(0),
-        };
-        return reduce_order;
+        }
     }
 }
 
@@ -44,7 +43,7 @@ struct LimitOrder {
 
 impl LimitOrder {
     fn new(input_vec: Vec<&str>) -> Self {
-        let addorder = LimitOrder {
+        LimitOrder {
             timestamp: input_vec[0].to_string(),
             id: input_vec[2].to_string(),
             side: match input_vec[3] {
@@ -54,19 +53,17 @@ impl LimitOrder {
             },
             price: Amount::new_from_str(&input_vec[4]),
             size: input_vec[5].parse::<i64>().unwrap_or(0),
-        };
-        return addorder;
+        }
     }
 
     fn new_from(old_order: &LimitOrder, new_size: i64) -> Self {
-        let order = LimitOrder {
+        LimitOrder {
             timestamp: old_order.timestamp.clone(),
             id: old_order.id.clone(),
             side: old_order.side,
             price: old_order.price,
             size: new_size,
-        };
-        return order;
+        }
     }
 }
 /// Price cache strategy (for benchmarking)
@@ -126,7 +123,7 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
             asks_at_price: BTreeMap::new(),
             bids_total_size: 0,
             asks_total_size: 0,
-            target_size: target_size,
+            target_size,
             last_action_side: OrderSide::Ask,
             last_action_timestamp: "dummy_string".to_string(),
         }
@@ -135,17 +132,14 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
     fn add(&mut self, order: LimitOrder) {
         if order.side == OrderSide::Bid {
             self.last_action_side = OrderSide::Bid;
-            if self.bids_at_price.contains_key(&order.price) == false {
-                self.bids_at_price.insert(order.price, 0);
-            }
+            self.bids_at_price.entry(order.price).or_insert(0);
+
             let orders_at_given_price = self.bids_at_price.get_mut(&order.price).unwrap();
             *orders_at_given_price += &order.size;
             self.bids_total_size += order.size;
         } else if order.side == OrderSide::Ask {
             self.last_action_side = OrderSide::Ask;
-            if self.asks_at_price.contains_key(&order.price) == false {
-                self.asks_at_price.insert(order.price, 0);
-            }
+            self.asks_at_price.entry(order.price).or_insert(0);
             let orders_at_given_price = self.asks_at_price.get_mut(&order.price).unwrap();
             *orders_at_given_price += &order.size;
             self.asks_total_size += order.size;
@@ -154,7 +148,7 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
         self.last_action_timestamp = order.timestamp;
     }
 
-    fn reduce_order(&mut self, order: ReduceOrder) {
+    fn reduce_order(&mut self, order: &ReduceOrder) {
         let (price, side) = match self.cache.get(&order.id) {
             Some(tup) => (tup),
             None => panic!("No order under key {}", &order.id),
@@ -199,7 +193,7 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
     fn summarise_amount_from_asks(&self) -> Amount {
         let mut res = Amount::new();
         let mut target_left = self.target_size;
-        for (price, depth) in self.asks_at_price.iter() {
+        for (price, depth) in &self.asks_at_price {
             if target_left <= 0 {
                 break;
             }
@@ -236,11 +230,11 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
     }
 
     fn process(&mut self, instruction: &str) {
-        let order_vec: Vec<&str> = instruction.trim().split(" ").collect();
+        let order_vec: Vec<&str> = instruction.trim().split(' ').collect();
         if order_vec[1] == "A" {
             self.add(LimitOrder::new(order_vec));
         } else if order_vec[1] == "R" {
-            self.reduce_order(ReduceOrder::new(order_vec));
+            self.reduce_order(&ReduceOrder::new(order_vec));
         } else {
             eprintln!("Error processing {}", instruction);
         }
@@ -280,11 +274,11 @@ fn main() {
     for order_line in stdin.lock().lines() {
         let unwrapped_line: &str = &order_line.unwrap();
 
-        let order_vec: Vec<&str> = unwrapped_line.trim().split(" ").collect();
+        let order_vec: Vec<&str> = unwrapped_line.trim().split(' ').collect();
         if order_vec[1] == "A" {
             ob.add(LimitOrder::new(order_vec));
         } else if order_vec[1] == "R" {
-            ob.reduce_order(ReduceOrder::new(order_vec));
+            ob.reduce_order(&ReduceOrder::new(order_vec));
         } else {
             continue;
         }
@@ -328,7 +322,7 @@ mod tests {
 
     #[test]
     fn limit_order_constructor() {
-        let lo = LimitOrder::new("28800538 A b S 44.07 100".split(" ").collect());
+        let lo = LimitOrder::new("28800538 A b S 44.07 100".split(' ').collect());
         assert_eq!(lo.timestamp, "28800538");
         assert_eq!(lo.id, "b");
         assert_eq!(lo.side, OrderSide::Ask);
@@ -351,7 +345,7 @@ mod tests {
     fn orderbook_add_ask() {
         let target_size = 200;
         let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
-        let ask = LimitOrder::new("28800538 A b S 44.26 100".split(" ").collect());
+        let ask = LimitOrder::new("28800538 A b S 44.26 100".split(' ').collect());
         ob.add(ask);
         assert_eq!(ob.asks_total_size, 100);
         assert_eq!(ob.bids_total_size, 0);
@@ -367,7 +361,7 @@ mod tests {
     fn orderbook_add_bid() {
         let target_size = 200;
         let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
-        let bid = LimitOrder::new("28800538 A b B 44.26 100".split(" ").collect());
+        let bid = LimitOrder::new("28800538 A b B 44.26 100".split(' ').collect());
         ob.add(bid);
         assert_eq!(ob.bids_total_size, 100);
         assert_eq!(ob.asks_total_size, 0);
@@ -383,10 +377,10 @@ mod tests {
     fn orderbook_reduce_ask() {
         let target_size = 200;
         let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
-        let ask = LimitOrder::new("28800538 A b S 44.26 100".split(" ").collect());
+        let ask = LimitOrder::new("28800538 A b S 44.26 100".split(' ').collect());
         ob.add(ask);
-        let ro = ReduceOrder::new("28800744 R b 20".split(" ").collect());
-        ob.reduce_order(ro);
+        let ro = ReduceOrder::new("28800744 R b 20".split(' ').collect());
+        ob.reduce_order(&ro);
         assert_eq!(ob.asks_total_size, 80);
         assert_eq!(ob.bids_total_size, 0);
         assert_eq!(ob.summarise_target(), None);
@@ -401,10 +395,10 @@ mod tests {
     fn orderbook_reduce_bid() {
         let target_size = 200;
         let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
-        let bid = LimitOrder::new("28800538 A b B 44.26 100".split(" ").collect());
+        let bid = LimitOrder::new("28800538 A b B 44.26 100".split(' ').collect());
         ob.add(bid);
-        let ro = ReduceOrder::new("28800744 R b 20".split(" ").collect());
-        ob.reduce_order(ro);
+        let ro = ReduceOrder::new("28800744 R b 20".split(' ').collect());
+        ob.reduce_order(&ro);
         assert_eq!(ob.bids_total_size, 80);
         assert_eq!(ob.asks_total_size, 0);
         assert_eq!(ob.last_action_side, OrderSide::Bid);
@@ -419,11 +413,11 @@ mod tests {
     fn orderbook_add_reduce_add() {
         let target_size = 200;
         let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
-        let bid = LimitOrder::new("28800538 A b B 44.26 100".split(" ").collect());
+        let bid = LimitOrder::new("28800538 A b B 44.26 100".split(' ').collect());
         ob.add(bid);
-        let ro = ReduceOrder::new("28800744 R b 20".split(" ").collect());
-        ob.reduce_order(ro);
-        let bid2 = LimitOrder::new("28800986 A c B 44.07 500".split(" ").collect());
+        let ro = ReduceOrder::new("28800744 R b 20".split(' ').collect());
+        ob.reduce_order(&ro);
+        let bid2 = LimitOrder::new("28800986 A c B 44.07 500".split(' ').collect());
         ob.add(bid2);
         let ret = ob.summarise_target();
         assert_eq!(ob.bids_total_size, 580);
