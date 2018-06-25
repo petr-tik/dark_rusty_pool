@@ -131,21 +131,15 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
 
     fn add(&mut self, order: LimitOrder) {
         if order.side == OrderSide::Bid {
-            self.last_action_side = OrderSide::Bid;
-            self.bids_at_price.entry(order.price).or_insert(0);
-
-            let orders_at_given_price = self.bids_at_price.get_mut(&order.price).unwrap();
-            *orders_at_given_price += &order.size;
+            *self.bids_at_price.entry(order.price).or_insert(0) += &order.size;
             self.bids_total_size += order.size;
         } else if order.side == OrderSide::Ask {
-            self.last_action_side = OrderSide::Ask;
-            self.asks_at_price.entry(order.price).or_insert(0);
-            let orders_at_given_price = self.asks_at_price.get_mut(&order.price).unwrap();
-            *orders_at_given_price += &order.size;
+            *self.asks_at_price.entry(order.price).or_insert(0) += &order.size;
             self.asks_total_size += order.size;
         }
         self.cache.insert(&order);
         self.last_action_timestamp = order.timestamp;
+        self.last_action_side = order.side;
     }
 
     fn reduce_order(&mut self, order: &ReduceOrder) {
