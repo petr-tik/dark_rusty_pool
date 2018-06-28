@@ -57,8 +57,6 @@ impl Display for Amount {
     }
 }
 
-// todo - turn price into unsigned value
-
 #[cfg(test)]
 mod tests {
     use super::*;

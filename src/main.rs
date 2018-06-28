@@ -169,9 +169,8 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
         Relies on change of state of last_action_side attribute. 
         Every add_order and reduce order api call need to update the last_action_side.
 
-        
-
-        Returning None, means there aren't enough bids to 
+        Returning None, means there aren't enough bids to sell to 
+        or asks to buy.
 
          */
         if self.bids_total_size >= self.target_size && self.last_action_side == OrderSide::Bid {
@@ -243,12 +242,10 @@ fn get_target_size() -> i64 {
     if args.len() != 2 {
         panic!("Need target size input");
     }
-    let target_size = match args[1].parse::<i64>() {
+    match args[1].parse::<i64>() {
         Ok(res) => res,
         Err(_e) => panic!("Couldn't parse input into i64"),
-    };
-
-    target_size
+    }
 }
 
 fn prepare_reports() -> HashMap<OrderSide, Option<Amount>> {
