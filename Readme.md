@@ -4,7 +4,8 @@ Learnt Rust to implement an order book and compare against another implementatio
 
 ## Requirements
 
-  * Rust 1.26 (stdlib only)
+  * Rust 1.27
+  * fnv 1.0.6
   * Cargo
 
 ## Test and run
@@ -108,3 +109,10 @@ Pros:
     
     * if a lookup of previously-deleted key occurs, we can end that branch of logic quickly. Unlikely to occur - clients shouldn't ask to reduce the same order twice.
     * Prevents the BTreeMap from growing too much. Shouldn't matter too much, but on big applications, it's worth preserving heap space for ids with valid data.
+
+
+## Lightning talk
+
+Gave a 5-minute talk about this project at the London Rust meetup. 
+
+[Slides](https://docs.google.com/presentation/d/e/2PACX-1vShyqTQMgiZyg7GpxN5cqOqKM-cLAVhvymcDQFCp4gRcLubBz7OuoL3houVt_HdDmsCbOxMbF3KbWyl/pub?start=false&loop=false&delayms=3000)
