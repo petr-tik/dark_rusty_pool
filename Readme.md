@@ -2,6 +2,12 @@
 
 Learnt Rust to implement an order book and compare against another implementation in C++17. 
 
+## Lightning talk
+
+Gave a 5-minute talk about this project at the London Rust meetup. 
+
+[Slides](https://docs.google.com/presentation/d/e/2PACX-1vShyqTQMgiZyg7GpxN5cqOqKM-cLAVhvymcDQFCp4gRcLubBz7OuoL3houVt_HdDmsCbOxMbF3KbWyl/pub?start=false&loop=false&delayms=3000)
+
 ## Requirements
 
   * Rust 1.27
@@ -31,8 +37,8 @@ The order book allows adding new orders, reducing current ones and printing the 
 ```rust
 type Depth = i64;
 
-struct OrderBook {
-    cache: IdPriceCache,
+struct OrderBook<T: IdPriceCache + Sized> {
+    cache: T,
     bids_at_price: BTreeMap<Amount, Depth>,
     bids_total_size: i64,
     asks_at_price: BTreeMap<Amount, Depth>,
@@ -40,9 +46,11 @@ struct OrderBook {
     target_size: i64,
     // only 1 side is affected on Reduce or Limit order
     last_action_side: OrderSide,   // which side was touched last
-    last_action_timestamp: String, // timestamp of last touched side,
+    last_action_timestamp: String, // timestamp of last touched side
 }
 ```
+
+## API
 
 ### Adding a new limit order
 
@@ -63,7 +71,7 @@ Keeping total depth per price, gives us a shortcut to quickly calculate how much
 
 Orders are stored in:
 
-  * cache to look up price and side by order id
+  * Cache to look up price and side by order id
   * Ordered map (BTreeMap) of prices to depths.
 
 ## Motivation
@@ -94,25 +102,24 @@ sys	0m0.128s
 
 1. Wherever feasible replace `String` with `&str`. Consider the lifetime of strings like order ID and order timestamps and implement an efficient way instead of using `to_string()` and `clone()`, which defeat the advantage of rust. 
 
+Pros: 
+
+  * most of my strings are read-only - should work well and reduce memory usage.
+  * Learn about lifetimes and borrowing in Rust
+
+Cons: 
+  * learning about said lifetimes and borrowing will pit me against the infamous borrow checker.
+
+2. Currently - reducing an order into oblivion (eg. reduce an order of size 100, by >100) doesn't remove its key from the IdPriceCache. This leads to higher memory usage, if unused keys persist in the cache. It might be useful to remove the key-value pair, if the order is ever completely reduced. 
+
+Requires: 
+
+  * Adding order size to the IdOrderPrice cache and decrementing it after every reduce. 
+  * Turning OrderBook.reduce() into reducing 2 internal states - not a pretty abstraction.
+
 Pros:
 
-    * most of my strings are read-only - should work well and reduce memory usage.
-    * Learn about lifetimes and borrowing in Rust
+  * if a lookup of previously-deleted key occurs, we can end that branch of logic quickly. Unlikely to occur - clients shouldn't ask to reduce the same order twice.
+  * Prevents the BTreeMap from growing too much. Shouldn't matter too much, but on big applications, it's worth preserving heap space for ids with valid data.
 
-Cons:
-    
-    * learning about said lifetimes and borrowing will pit me against the infamous borrow checker.
-
-2. Currently - reducing an order into oblivion (eg. reduce an order of size 100, by >100) doesn't remove its key from the IdPriceCache. This leads to higher memory usage. It might be useful to remove the key-value pair, if the order is ever completely reduced. Requires adding order size to the IdOrderPrice cache and decrementing it after every reduce. Will turn OrderBook.reduce() into reducing 2 internal states - not a pretty abstraction.
-
-Pros: 
-    
-    * if a lookup of previously-deleted key occurs, we can end that branch of logic quickly. Unlikely to occur - clients shouldn't ask to reduce the same order twice.
-    * Prevents the BTreeMap from growing too much. Shouldn't matter too much, but on big applications, it's worth preserving heap space for ids with valid data.
-
-
-## Lightning talk
-
-Gave a 5-minute talk about this project at the London Rust meetup. 
-
-[Slides](https://docs.google.com/presentation/d/e/2PACX-1vShyqTQMgiZyg7GpxN5cqOqKM-cLAVhvymcDQFCp4gRcLubBz7OuoL3houVt_HdDmsCbOxMbF3KbWyl/pub?start=false&loop=false&delayms=3000)
+3. Check if using a vector for bids and asks is better than a BTreeMap. Perf shows BTreeMap iterators to be one of the most expensive parts of the code and if the vector is cheaper to rewrite in practice - use the vector for cache locality.
