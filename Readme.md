@@ -88,6 +88,8 @@ Benchmarking my first implementation against Ludwig's C++17 version showed that 
 
 2. After running `collect_perf` and `perf report`, I found that println! was taking 8.96% of time. Googling for efficient stdout printing in Rust suggested replacing println! with writeln! with a stdout lock as one of the args. 
 
+3. Replaced Strings for timestamps with int64. Strings are heap-allocated, require malloc and free. Ints should be faster to allocate. Updated the benchmark.
+
 ### Current benchmark
 
 ```bash
@@ -101,6 +103,8 @@ sys	0m0.140s
 ### Potential perf improvements - yet to be investigated
 
 1. Wherever feasible replace `String` with `&str`. Consider the lifetime of strings like order ID and order timestamps and implement an efficient way instead of using `to_string()` and `clone()`, which defeat the advantage of rust. 
+
+eg. Order ID is only used in input and inside the order book, no need to print it back out. It might be more efficient to convert/cast string into a i32 value and use that, wherever order ID is used. 
 
 Pros: 
 
