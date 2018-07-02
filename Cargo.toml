@@ -8,3 +8,4 @@ fnv = "1.0.6"
 
 [profile.release]
 opt-level=3
+debug=true

@@ -93,9 +93,9 @@ Benchmarking my first implementation against Ludwig's C++17 version showed that 
 ```bash
 ./time_rust_pricer.sh
 ...
-real	0m2.104s
-user	0m1.970s
-sys	0m0.128s
+real	0m1.909s
+user	0m1.763s
+sys	0m0.140s
 ```
 
 ### Potential perf improvements - yet to be investigated

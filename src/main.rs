@@ -16,7 +16,7 @@ use orderside::OrderSide;
 #[derive(Debug)]
 struct ReduceOrder {
     // "28800744 R b 20"
-    timestamp: String,
+    timestamp: i64,
     id: String,
     size: i64,
 }
@@ -24,7 +24,7 @@ struct ReduceOrder {
 impl ReduceOrder {
     fn new(input_vec: Vec<&str>) -> Self {
         ReduceOrder {
-            timestamp: input_vec[0].to_string(),
+            timestamp: input_vec[0].parse::<i64>().unwrap_or(0),
             id: input_vec[2].to_string(),
             size: input_vec[3].parse::<i64>().unwrap_or(0),
         }
@@ -34,7 +34,7 @@ impl ReduceOrder {
 #[derive(Clone, Debug, PartialEq)]
 struct LimitOrder {
     // "28800538 A b S 44.26 100"
-    timestamp: String,
+    timestamp: i64,
     id: String,
     side: OrderSide,
     price: Amount,
@@ -44,7 +44,7 @@ struct LimitOrder {
 impl LimitOrder {
     fn new(input_vec: Vec<&str>) -> Self {
         LimitOrder {
-            timestamp: input_vec[0].to_string(),
+            timestamp: input_vec[0].parse::<i64>().unwrap_or(0),
             id: input_vec[2].to_string(),
             side: match input_vec[3] {
                 "B" => OrderSide::Bid,
@@ -111,8 +111,8 @@ struct OrderBook<T: IdPriceCache + Sized> {
     asks_total_size: i64,
     target_size: i64,
     // only 1 side is affected on Reduce or Limit order
-    last_action_side: OrderSide,   // which side was touched last
-    last_action_timestamp: String, // timestamp of last touched side
+    last_action_side: OrderSide, // which side was touched last
+    last_action_timestamp: i64,  // timestamp of last touched side
 }
 
 impl<T: IdPriceCache + Sized> OrderBook<T> {
@@ -125,7 +125,7 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
             asks_total_size: 0,
             target_size,
             last_action_side: OrderSide::Ask,
-            last_action_timestamp: "dummy_string".to_string(),
+            last_action_timestamp: 000000000,
         }
     }
 
@@ -314,7 +314,7 @@ mod tests {
     #[test]
     fn limit_order_constructor() {
         let lo = LimitOrder::new("28800538 A b S 44.07 100".split(' ').collect());
-        assert_eq!(lo.timestamp, "28800538");
+        assert_eq!(lo.timestamp, 28800538);
         assert_eq!(lo.id, "b");
         assert_eq!(lo.side, OrderSide::Ask);
         assert_eq!(lo.price.as_int, 4407);
@@ -328,7 +328,7 @@ mod tests {
         assert_eq!(ob.bids_total_size, 0);
         assert_eq!(ob.asks_total_size, 0);
         assert_eq!(ob.target_size, target_size);
-        assert_eq!(ob.last_action_timestamp, "dummy_string");
+        assert_eq!(ob.last_action_timestamp, 000000000);
         assert_eq!(ob.last_action_side, OrderSide::Ask);
     }
 
@@ -342,7 +342,7 @@ mod tests {
         assert_eq!(ob.bids_total_size, 0);
         assert_eq!(ob.summarise_target(), None);
         assert_eq!(ob.last_action_side, OrderSide::Ask);
-        assert_eq!(ob.last_action_timestamp, "28800538");
+        assert_eq!(ob.last_action_timestamp, 28800538);
         assert!(ob.cache.contains_key("b"));
         let price = Amount::new_from_str("44.26");
         assert!(ob.asks_at_price.contains_key(&price));
@@ -358,7 +358,7 @@ mod tests {
         assert_eq!(ob.asks_total_size, 0);
         assert_eq!(ob.summarise_target(), None);
         assert_eq!(ob.last_action_side, OrderSide::Bid);
-        assert_eq!(ob.last_action_timestamp, "28800538");
+        assert_eq!(ob.last_action_timestamp, 28800538);
         assert!(ob.cache.contains_key("b"));
         let price = Amount::new_from_str("44.26");
         assert!(ob.bids_at_price.contains_key(&price));
@@ -376,7 +376,7 @@ mod tests {
         assert_eq!(ob.bids_total_size, 0);
         assert_eq!(ob.summarise_target(), None);
         assert_eq!(ob.last_action_side, OrderSide::Ask);
-        assert_eq!(ob.last_action_timestamp, "28800744");
+        assert_eq!(ob.last_action_timestamp, 28800744);
         assert!(ob.cache.contains_key("b"));
         let price = Amount::new_from_str("44.26");
         assert!(ob.asks_at_price.contains_key(&price));
@@ -393,7 +393,7 @@ mod tests {
         assert_eq!(ob.bids_total_size, 80);
         assert_eq!(ob.asks_total_size, 0);
         assert_eq!(ob.last_action_side, OrderSide::Bid);
-        assert_eq!(ob.last_action_timestamp, "28800744");
+        assert_eq!(ob.last_action_timestamp, 28800744);
         assert_eq!(ob.summarise_target(), None);
         assert!(ob.cache.contains_key("b"));
         let price = Amount::new_from_str("44.26");
@@ -414,7 +414,7 @@ mod tests {
         assert_eq!(ob.bids_total_size, 580);
         assert_eq!(ob.asks_total_size, 0);
         assert_eq!(ob.last_action_side, OrderSide::Bid);
-        assert_eq!(ob.last_action_timestamp, "28800986");
+        assert_eq!(ob.last_action_timestamp, 28800986);
         assert!(ob.cache.contains_key("b"));
         assert!(ob.cache.contains_key("c"));
         assert_eq!(ret, Some(Amount::new_from_str("8829.20")));
@@ -428,7 +428,7 @@ mod tests {
         assert_eq!(ob.asks_total_size, 100);
         assert_eq!(ob.bids_total_size, 0);
         assert_eq!(ob.last_action_side, OrderSide::Ask);
-        assert_eq!(ob.last_action_timestamp, "28800538");
+        assert_eq!(ob.last_action_timestamp, 28800538);
         assert!(ob.cache.contains_key("b"));
         assert_eq!(ob.summarise_target(), None);
 
@@ -436,7 +436,7 @@ mod tests {
         assert_eq!(ob.asks_total_size, 100);
         assert_eq!(ob.bids_total_size, 100);
         assert_eq!(ob.last_action_side, OrderSide::Bid);
-        assert_eq!(ob.last_action_timestamp, "28800562");
+        assert_eq!(ob.last_action_timestamp, 28800562);
         assert!(ob.cache.contains_key("b"));
         assert!(ob.cache.contains_key("c"));
         assert_eq!(ob.summarise_target(), None);
@@ -445,7 +445,7 @@ mod tests {
         assert_eq!(ob.asks_total_size, 0);
         assert_eq!(ob.bids_total_size, 100);
         assert_eq!(ob.last_action_side, OrderSide::Ask);
-        assert_eq!(ob.last_action_timestamp, "28800744");
+        assert_eq!(ob.last_action_timestamp, 28800744);
         assert!(ob.cache.contains_key("b"));
         assert!(ob.cache.contains_key("c"));
         assert_eq!(ob.summarise_target(), None);
@@ -454,7 +454,7 @@ mod tests {
         assert_eq!(ob.asks_total_size, 0);
         assert_eq!(ob.bids_total_size, 257);
         assert_eq!(ob.last_action_side, OrderSide::Bid);
-        assert_eq!(ob.last_action_timestamp, "28800758");
+        assert_eq!(ob.last_action_timestamp, 28800758);
         assert!(ob.cache.contains_key("b"));
         assert!(ob.cache.contains_key("c"));
         assert!(ob.cache.contains_key("d"));
