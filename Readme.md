@@ -78,7 +78,7 @@ Orders are stored in:
 
 Inspired by [Ludwig Pacifici's implementation using C++17](https://github.com/ludwigpacifici/order-book-pricer), I decided to learn Rust and implement an order book.
 
-### Already implemented perf improvements
+### Implemented perf improvements
 
 Benchmarking my first implementation against Ludwig's C++17 version showed that my design was terrible. Performance optimisations that I made (chronological order):
 
@@ -90,14 +90,24 @@ Benchmarking my first implementation against Ludwig's C++17 version showed that 
 
 3. Replaced Strings for timestamps with int64. Strings are heap-allocated, require malloc and free. Ints should be faster to allocate. Updated the benchmark.
 
+4. Since order IDs aren't required for stdout, we don't need to keep the string representation of each order id. I implemented a hash function (using a FNVHasher) and changed order id from `String` to `u64` in ReduceOrder and LimitOrder. Also changed the IdPriceCache signature to make sure cache looks `hash(id)` rather than `id: String`. 
+
+```bash 
+./time_rust_pricer.sh
+...
+real	0m1.712s
+user	0m1.590s
+sys	0m0.116s
+```
+
 ### Current benchmark
 
 ```bash
 ./time_rust_pricer.sh
 ...
-real	0m1.909s
-user	0m1.763s
-sys	0m0.140s
+real	0m1.712s
+user	0m1.590s
+sys	0m0.116s
 ```
 
 ### Potential perf improvements - yet to be investigated
@@ -127,3 +137,4 @@ Pros:
   * Prevents the BTreeMap from growing too much. Shouldn't matter too much, but on big applications, it's worth preserving heap space for ids with valid data.
 
 3. Check if using a vector for bids and asks is better than a BTreeMap. Perf shows BTreeMap iterators to be one of the most expensive parts of the code and if the vector is cheaper to rewrite in practice - use the vector for cache locality.
+

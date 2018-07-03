@@ -4,6 +4,7 @@ use std::cmp::min;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::env;
+use std::hash::{Hash, Hasher};
 use std::io;
 use std::io::prelude::*;
 
@@ -13,11 +14,17 @@ use amount::Amount;
 mod orderside;
 use orderside::OrderSide;
 
+pub fn hash<T: Hash>(x: T) -> u64 {
+    let mut hasher = fnv::FnvHasher::default();
+    x.hash(&mut hasher);
+    hasher.finish()
+}
+
 #[derive(Debug)]
 struct ReduceOrder {
     // "28800744 R b 20"
     timestamp: i64,
-    id: String,
+    id: u64,
     size: i64,
 }
 
@@ -25,7 +32,7 @@ impl ReduceOrder {
     fn new(input_vec: Vec<&str>) -> Self {
         ReduceOrder {
             timestamp: input_vec[0].parse::<i64>().unwrap_or(0),
-            id: input_vec[2].to_string(),
+            id: hash(&input_vec[2]),
             size: input_vec[3].parse::<i64>().unwrap_or(0),
         }
     }
@@ -35,7 +42,7 @@ impl ReduceOrder {
 struct LimitOrder {
     // "28800538 A b S 44.26 100"
     timestamp: i64,
-    id: String,
+    id: u64,
     side: OrderSide,
     price: Amount,
     size: i64,
@@ -45,7 +52,7 @@ impl LimitOrder {
     fn new(input_vec: Vec<&str>) -> Self {
         LimitOrder {
             timestamp: input_vec[0].parse::<i64>().unwrap_or(0),
-            id: input_vec[2].to_string(),
+            id: hash(input_vec[2]),
             side: match input_vec[3] {
                 "B" => OrderSide::Bid,
                 "S" => OrderSide::Ask,
@@ -55,48 +62,25 @@ impl LimitOrder {
             size: input_vec[5].parse::<i64>().unwrap_or(0),
         }
     }
-
-    fn new_from(old_order: &LimitOrder, new_size: i64) -> Self {
-        LimitOrder {
-            timestamp: old_order.timestamp.clone(),
-            id: old_order.id.clone(),
-            side: old_order.side,
-            price: old_order.price,
-            size: new_size,
-        }
-    }
 }
+
 /// Price cache strategy (for benchmarking)
 trait IdPriceCache {
     fn insert(&mut self, order: &LimitOrder);
-    fn contains_key(&self, key: &str) -> bool;
-    fn get(&self, key: &str) -> Option<&(Amount, OrderSide)>;
+    fn contains_key(&self, key: &u64) -> bool;
+    fn get(&self, key: &u64) -> Option<&(Amount, OrderSide)>;
 }
 
-type IdPriceCacheDefaultMap = HashMap<String, (Amount, OrderSide)>;
-impl IdPriceCache for IdPriceCacheDefaultMap {
-    fn insert(&mut self, order: &LimitOrder) {
-        self.insert(order.id.clone(), (order.price, order.side));
-    }
 
-    fn contains_key(&self, key: &str) -> bool {
-        self.contains_key(key)
-    }
-
-    fn get(&self, key: &str) -> Option<&(Amount, OrderSide)> {
-        self.get(key)
-    }
-}
-
-type IdPriceCacheFnvMap = fnv::FnvHashMap<String, (Amount, OrderSide)>;
+type IdPriceCacheFnvMap = fnv::FnvHashMap<u64, (Amount, OrderSide)>;
 impl IdPriceCache for IdPriceCacheFnvMap {
     fn insert(&mut self, order: &LimitOrder) {
-        self.insert(order.id.clone(), (order.price, order.side));
+        self.insert(order.id, (order.price, order.side));
     }
-    fn contains_key(&self, key: &str) -> bool {
+    fn contains_key(&self, key: &u64) -> bool {
         self.contains_key(key)
     }
-    fn get(&self, key: &str) -> Option<&(Amount, OrderSide)> {
+    fn get(&self, key: &u64) -> Option<&(Amount, OrderSide)> {
         self.get(key)
     }
 }
@@ -315,7 +299,7 @@ mod tests {
     fn limit_order_constructor() {
         let lo = LimitOrder::new("28800538 A b S 44.07 100".split(' ').collect());
         assert_eq!(lo.timestamp, 28800538);
-        assert_eq!(lo.id, "b");
+        assert_eq!(lo.id, hash("b"));
         assert_eq!(lo.side, OrderSide::Ask);
         assert_eq!(lo.price.as_int, 4407);
         assert_eq!(lo.size, 100);
@@ -343,7 +327,7 @@ mod tests {
         assert_eq!(ob.summarise_target(), None);
         assert_eq!(ob.last_action_side, OrderSide::Ask);
         assert_eq!(ob.last_action_timestamp, 28800538);
-        assert!(ob.cache.contains_key("b"));
+        assert!(ob.cache.contains_key(&hash("b")));
         let price = Amount::new_from_str("44.26");
         assert!(ob.asks_at_price.contains_key(&price));
     }
@@ -359,7 +343,7 @@ mod tests {
         assert_eq!(ob.summarise_target(), None);
         assert_eq!(ob.last_action_side, OrderSide::Bid);
         assert_eq!(ob.last_action_timestamp, 28800538);
-        assert!(ob.cache.contains_key("b"));
+        assert!(ob.cache.contains_key(&hash("b")));
         let price = Amount::new_from_str("44.26");
         assert!(ob.bids_at_price.contains_key(&price));
     }
@@ -377,7 +361,7 @@ mod tests {
         assert_eq!(ob.summarise_target(), None);
         assert_eq!(ob.last_action_side, OrderSide::Ask);
         assert_eq!(ob.last_action_timestamp, 28800744);
-        assert!(ob.cache.contains_key("b"));
+        assert!(ob.cache.contains_key(&hash("b")));
         let price = Amount::new_from_str("44.26");
         assert!(ob.asks_at_price.contains_key(&price));
     }
@@ -395,7 +379,7 @@ mod tests {
         assert_eq!(ob.last_action_side, OrderSide::Bid);
         assert_eq!(ob.last_action_timestamp, 28800744);
         assert_eq!(ob.summarise_target(), None);
-        assert!(ob.cache.contains_key("b"));
+        assert!(ob.cache.contains_key(&hash("b")));
         let price = Amount::new_from_str("44.26");
         assert!(ob.bids_at_price.contains_key(&price));
     }
@@ -415,8 +399,8 @@ mod tests {
         assert_eq!(ob.asks_total_size, 0);
         assert_eq!(ob.last_action_side, OrderSide::Bid);
         assert_eq!(ob.last_action_timestamp, 28800986);
-        assert!(ob.cache.contains_key("b"));
-        assert!(ob.cache.contains_key("c"));
+        assert!(ob.cache.contains_key(&hash("b")));
+        assert!(ob.cache.contains_key(&hash("c")));
         assert_eq!(ret, Some(Amount::new_from_str("8829.20")));
     }
 
@@ -429,7 +413,7 @@ mod tests {
         assert_eq!(ob.bids_total_size, 0);
         assert_eq!(ob.last_action_side, OrderSide::Ask);
         assert_eq!(ob.last_action_timestamp, 28800538);
-        assert!(ob.cache.contains_key("b"));
+        assert!(ob.cache.contains_key(&hash("b")));
         assert_eq!(ob.summarise_target(), None);
 
         ob.process("28800562 A c B 44.10 100");
@@ -437,8 +421,8 @@ mod tests {
         assert_eq!(ob.bids_total_size, 100);
         assert_eq!(ob.last_action_side, OrderSide::Bid);
         assert_eq!(ob.last_action_timestamp, 28800562);
-        assert!(ob.cache.contains_key("b"));
-        assert!(ob.cache.contains_key("c"));
+        assert!(ob.cache.contains_key(&hash("b")));
+        assert!(ob.cache.contains_key(&hash("c")));
         assert_eq!(ob.summarise_target(), None);
 
         ob.process("28800744 R b 100");
@@ -446,8 +430,8 @@ mod tests {
         assert_eq!(ob.bids_total_size, 100);
         assert_eq!(ob.last_action_side, OrderSide::Ask);
         assert_eq!(ob.last_action_timestamp, 28800744);
-        assert!(ob.cache.contains_key("b"));
-        assert!(ob.cache.contains_key("c"));
+        assert!(ob.cache.contains_key(&hash("b")));
+        assert!(ob.cache.contains_key(&hash("c")));
         assert_eq!(ob.summarise_target(), None);
 
         ob.process("28800758 A d B 44.18 157");
@@ -455,9 +439,9 @@ mod tests {
         assert_eq!(ob.bids_total_size, 257);
         assert_eq!(ob.last_action_side, OrderSide::Bid);
         assert_eq!(ob.last_action_timestamp, 28800758);
-        assert!(ob.cache.contains_key("b"));
-        assert!(ob.cache.contains_key("c"));
-        assert!(ob.cache.contains_key("d"));
+        assert!(ob.cache.contains_key(&hash("b")));
+        assert!(ob.cache.contains_key(&hash("c")));
+        assert!(ob.cache.contains_key(&hash("d")));
         assert_eq!(ob.summarise_target(), Some(Amount::new_from_str("8832.56")));
 
         ob.process("28800796 R d 157");
