@@ -82,15 +82,15 @@ Inspired by [Ludwig Pacifici's implementation using C++17](https://github.com/lu
 
 Benchmarking my first implementation against Ludwig's C++17 version showed that my design was terrible. Performance optimisations that I made (chronological order):
 
-    0. Realised this from the start - store float prices as ints. FP arithmetic is more CPU-intensive. For printing - implemeted own Display trait turns int into a string and prints the string with a separator <decimal_points> chars away from the right-hand side. Input: 44.25, stored as 4425, printed as "44.25".
+  0. Realised this from the start - store float prices as ints. FP arithmetic is more CPU-intensive. For printing - implemeted own Display trait turns int into a string and prints the string with a separator <decimal_points> chars away from the right-hand side. Input: 44.25, stored as 4425, printed as "44.25".
 
-    1. First implementation stored full limit order structs in Linked Lists in BTreeMaps. Linked list nodes were heap-allocated and blew the cache efficiency of my algrorithm. Ultimatelly, it's not necessary to keep the exact order. I now use the BTreeMap as a key value store between price point and depth of order book at that price point.
+  1. First implementation stored full limit order structs in Linked Lists in BTreeMaps. Linked list nodes were heap-allocated and blew the cache efficiency of my algrorithm. Ultimatelly, it's not necessary to keep the exact order. I now use the BTreeMap as a key value store between price point and depth of order book at that price point.
 
-    2. After running `collect_perf` and `perf report`, I found that println! was taking 8.96% of time. Googling for efficient stdout printing in Rust suggested replacing println! with writeln! with a stdout lock as one of the args. 
+  2. After running `collect_perf` and `perf report`, I found that println! was taking 8.96% of time. Googling for efficient stdout printing in Rust suggested replacing println! with writeln! with a stdout lock as one of the args. 
 
-    3. Replaced Strings for timestamps with int64. Strings are heap-allocated, require malloc and free. Ints should be faster to allocate. Updated the benchmark.
+  3. Replaced Strings for timestamps with int64. Strings are heap-allocated, require malloc and free. Ints should be faster to allocate. Updated the benchmark.
 
-    4. Since order IDs aren't required for stdout, we don't need to keep the string representation of each order id. I implemented a hash function (using a FNVHasher) and changed order id from `String` to `u64` in ReduceOrder and LimitOrder. Also changed the IdPriceCache signature to make sure cache looks `hash(id)` rather than `id: String`. 
+  4. Since order IDs aren't required for stdout, we don't need to keep the string representation of each order id. I implemented a hash function (using a FNVHasher) and changed order id from `String` to `u64` in ReduceOrder and LimitOrder. Also changed the IdPriceCache signature to make sure cache looks `hash(id)` rather than `id: String`. 
 
 ```bash 
 ./time_rust_pricer.sh
