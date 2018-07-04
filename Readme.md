@@ -100,14 +100,14 @@ user	0m1.590s
 sys	0m0.116s
 ```
 
-### Current benchmark
-
-```bash
+  5. Enabled LTO and added compile-time detail to heap-allocated data structures that expand at runtime. Calling `malloc` often will increase time spent in kernel-space. Given that we know the size of input data, we can call malloc at application start-up, request a lot of memory at once to reduce future calls for additional memory. The trade-off between requesting too much memory at start-up that you will never need vs. calling malloc for every expansion of BTreeMap can be investigated with different input sizes. 
+  
+```bash 
 ./time_rust_pricer.sh
 ...
-real	0m1.712s
-user	0m1.590s
-sys	0m0.116s
+real	0m1.643s
+user	0m1.532s
+sys	0m0.104s
 ```
 
 ### Potential perf improvements - yet to be investigated

@@ -233,7 +233,7 @@ fn get_target_size() -> i64 {
 }
 
 fn prepare_reports() -> HashMap<OrderSide, Option<Amount>> {
-    let mut hm = HashMap::new();
+    let mut hm = HashMap::with_capacity(2);
     hm.insert(OrderSide::Ask, None);
     hm.insert(OrderSide::Bid, None);
 
@@ -242,7 +242,8 @@ fn prepare_reports() -> HashMap<OrderSide, Option<Amount>> {
 
 fn main() {
     let target_size = get_target_size();
-    let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
+    let cache_capacity = 50000;
+    let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::with_capacity_and_hasher(cache_capacity, Default::default()));
     let mut reports = prepare_reports();
     let stdout = io::stdout();
     let stdin = io::stdin();
