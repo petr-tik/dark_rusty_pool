@@ -71,7 +71,6 @@ trait IdPriceCache {
     fn get(&self, key: &u64) -> Option<&(Amount, OrderSide)>;
 }
 
-
 type IdPriceCacheFnvMap = fnv::FnvHashMap<u64, (Amount, OrderSide)>;
 impl IdPriceCache for IdPriceCacheFnvMap {
     fn insert(&mut self, order: &LimitOrder) {
@@ -109,7 +108,7 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
             asks_total_size: 0,
             target_size,
             last_action_side: OrderSide::Ask,
-            last_action_timestamp: 000000000,
+            last_action_timestamp: 000_000_000,
         }
     }
 
@@ -142,7 +141,7 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
                 self.bids_total_size -= order.size;
             }
         }
-        self.last_action_timestamp = order.timestamp.clone();
+        self.last_action_timestamp = order.timestamp;
         self.last_action_side = *side;
     }
 
@@ -243,21 +242,20 @@ fn prepare_reports() -> HashMap<OrderSide, Option<Amount>> {
 fn main() {
     let target_size = get_target_size();
     let cache_capacity = 50000;
-    let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::with_capacity_and_hasher(cache_capacity, Default::default()));
+    let mut ob = OrderBook::new(
+        target_size,
+        IdPriceCacheFnvMap::with_capacity_and_hasher(
+            cache_capacity,
+            std::hash::BuildHasherDefault::<fnv::FnvHasher>::default(),
+        ),
+    );
     let mut reports = prepare_reports();
     let stdout = io::stdout();
     let stdin = io::stdin();
     for order_line in stdin.lock().lines() {
         let unwrapped_line: &str = &order_line.unwrap();
+        ob.process(unwrapped_line);
 
-        let order_vec: Vec<&str> = unwrapped_line.trim().split(' ').collect();
-        if order_vec[1] == "A" {
-            ob.add(LimitOrder::new(order_vec));
-        } else if order_vec[1] == "R" {
-            ob.reduce_order(&ReduceOrder::new(order_vec));
-        } else {
-            continue;
-        }
         let cur = ob.summarise_target();
         let mut prev = reports.get_mut(&!ob.last_action_side).unwrap();
         if cur.is_some() && prev.is_some() {
