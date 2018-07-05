@@ -89,6 +89,14 @@ Benchmarking my first implementation against Ludwig's C++17 version showed that 
   2. After running `collect_perf` and `perf report`, I found that println! was taking 8.96% of time. Googling for efficient stdout printing in Rust suggested replacing println! with writeln! with a stdout lock as one of the args. 
 
   3. Replaced Strings for timestamps with int64. Strings are heap-allocated, require malloc and free. Ints should be faster to allocate. Updated the benchmark.
+  
+```bash
+./time_rust_pricer.sh
+...
+real	0m1.909s
+user	0m1.763s
+sys	0m0.140s
+```
 
   4. Since order IDs aren't required for stdout, we don't need to keep the string representation of each order id. I implemented a hash function (using a FNVHasher) and changed order id from `String` to `u64` in ReduceOrder and LimitOrder. Also changed the IdPriceCache signature to make sure cache looks `hash(id)` rather than `id: String`. 
 
