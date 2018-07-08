@@ -1,6 +1,6 @@
 extern crate fnv;
 
-use std::cmp::min;
+use std::cmp::{min, Ordering, PartialEq, PartialOrd};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::env;
@@ -85,6 +85,11 @@ impl IdPriceCache for IdPriceCacheFnvMap {
 }
 
 type Depth = i64;
+
+type BidsVec = Vec<Amount>;
+type AsksVec = Vec<Amount>;
+type DepthsVec = Vec<Depth>;
+
 
 struct OrderBook<T: IdPriceCache + Sized> {
     cache: T,
@@ -444,6 +449,50 @@ mod tests {
         assert_eq!(ob.summarise_target(), Some(Amount::new_from_str("8832.56")));
 
         ob.process("28800796 R d 157");
+    }
+
+    #[test]
+    fn prices_vec_with_capacity() {
+        let vec: AsksVec = AsksVec::with_capacity(10);
+        assert_eq!(vec.len(), 0);
+    }
+
+    #[test]
+    fn prices_vec_len() {
+        let vec: AsksVec = AsksVec::with_capacity(10);
+        assert_eq!(vec.len(), 0);
+    }
+
+    #[test]
+    fn prices_vec_add() {
+        let mut vec: AsksVec = AsksVec::with_capacity(10);
+        vec.push(Amount::new());
+        assert_eq!(vec.len(), 1);
+        assert_eq!(vec[0], Amount::new());
+    }
+
+    #[test]
+    fn prices_vec_search_ok() {
+        let mut prices_vec: AsksVec = AsksVec::with_capacity(10);
+        let amounts_vec = ["44.10", "44.20", "60.00", "70.00"];
+        for item in amounts_vec.iter() {
+            let am_item = Amount::new_from_str(item);
+            prices_vec.push(am_item);
+        }
+        let idx = prices_vec.binary_search(&Amount::new_from_str(&"44.20"));
+        assert_eq!(idx, Ok(1));
+    }
+
+    #[test]
+    fn prices_vec_search_err() {
+        let mut prices_vec: AsksVec = AsksVec::with_capacity(10);
+        let amounts_vec = ["44.10", "44.20", "60.00", "70.00"];
+        for item in amounts_vec.iter() {
+            let am_item = Amount::new_from_str(item);
+            prices_vec.push(am_item);
+        }
+        let idx = prices_vec.binary_search(&Amount::new_from_str(&"84.20"));
+        assert_eq!(idx, Err(4));
     }
 
 }
