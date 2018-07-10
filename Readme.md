@@ -24,10 +24,11 @@ cargo build --release
 cargo run --release <target_size> < data/<market_data_file>
 ```
 
-Test harness from the problem statement. Writes output to a tmp file and compares to expected output. 
+Test harness from the problem statement. Writes output to tmp files and compares to expected output files. 
 
 ```bash
 ./run_basic_test.sh
+./run_big_test.sh
 ```
 
 ## Design
@@ -54,7 +55,7 @@ struct OrderBook<T: IdPriceCache + Sized> {
 
 ### Adding a new limit order
 
-Parse the price point (input as float) and quantity (relevant optimisation below). Find the relevant order side and insert the key-value pair of price - depth. Update the last action side and last action timestamp as well. 
+Parse the price point (input as float) and quantity (relevant optimisation below). Find the relevant order side and insert the key-value pair of (price, depth). Update the last action side and last action timestamp as well. 
 
 
 ### Reducing an order
@@ -74,11 +75,7 @@ Orders are stored in:
   * Cache to look up price and side by order id
   * Ordered map (BTreeMap) of prices to depths.
 
-## Motivation
-
-Inspired by [Ludwig Pacifici's implementation using C++17](https://github.com/ludwigpacifici/order-book-pricer), I decided to learn Rust and implement an order book.
-
-### Implemented perf improvements
+## Implemented perf improvements
 
 Benchmarking my first implementation against Ludwig's C++17 version showed that my design was terrible. Performance optimisations that I made (chronological order):
 
@@ -135,21 +132,9 @@ user	0m1.532s
 sys	0m0.104s
 ```
 
-### Potential perf improvements - yet to be investigated
+## Perf improvements to investigate
 
-1. Wherever feasible replace `String` with `&str`. Consider the lifetime of strings like order ID and order timestamps and implement an efficient way instead of using `to_string()` and `clone()`, which defeat the advantage of rust. 
-
-eg. Order ID is only used in input and inside the order book, no need to print it back out. It might be more efficient to convert/cast string into a i32 value and use that, wherever order ID is used. 
-
-Pros: 
-
-  * most of my strings are read-only - should work well and reduce memory usage.
-  * Learn about lifetimes and borrowing in Rust
-
-Cons: 
-  * learning about said lifetimes and borrowing will pit me against the infamous borrow checker.
-
-2. Currently - reducing an order into oblivion (eg. reduce an order of size 100, by >100) doesn't remove its key from the IdPriceCache. This leads to higher memory usage, if unused keys persist in the cache. It might be useful to remove the key-value pair, if the order is ever completely reduced. 
+1. Currently - reducing an order into oblivion (eg. reduce an order of size 100, by >100) doesn't remove its key from the IdPriceCache. This leads to higher memory usage, if unused keys persist in the cache. It might be useful to remove the key-value pair, if the order is ever completely reduced. 
 
 Requires: 
 
@@ -161,5 +146,8 @@ Pros:
   * if a lookup of previously-deleted key occurs, we can end that branch of logic quickly. Unlikely to occur - clients shouldn't ask to reduce the same order twice.
   * Prevents the BTreeMap from growing too much. Shouldn't matter too much, but on big applications, it's worth preserving heap space for ids with valid data.
 
-3. Check if using a vector for bids and asks is better than a BTreeMap. Perf shows BTreeMap iterators to be one of the most expensive parts of the code and if the vector is cheaper to rewrite in practice - use the vector for cache locality.
+2. Check if using a vector for bids and asks is better than a BTreeMap. Perf shows BTreeMap iterators to be one of the most expensive parts of the code and if the vector is cheaper to rewrite in practice - use the vector for cache locality.
 
+## Motivation
+
+Inspired by [Ludwig Pacifici's implementation using C++17](https://github.com/ludwigpacifici/order-book-pricer).
