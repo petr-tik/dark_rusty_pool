@@ -81,6 +81,14 @@ Benchmarking my first implementation against Ludwig's C++17 version showed that 
 
   0. Realised this from the start - store float prices as ints. FP arithmetic is more CPU-intensive. For printing - implemeted own Display trait turns int into a string and prints the string with a separator <decimal_points> chars away from the right-hand side. Input: 44.25, stored as 4425, printed as "44.25".
 
+### Collection method
+
+Made defined a bash function that uses perf stat and events to measure application performance.
+
+```bash
+perf_time () { sudo perf stat -e cpu-clock,task-clock,cs,cache-references,cache-misses,branches,branch-misses ./target/release/order_book 200 < data/pricer.in > /dev/null; }
+```
+
   1. First implementation stored full limit order structs in Linked Lists in BTreeMaps. Linked list nodes were heap-allocated and blew the cache efficiency of my algrorithm. Ultimatelly, it's not necessary to keep the exact order. I now use the BTreeMap as a key value store between price point and depth of order book at that price point.
 
 ```bash
