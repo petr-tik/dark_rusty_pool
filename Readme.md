@@ -10,7 +10,7 @@ Gave a 5-minute talk about this project at the London Rust meetup.
 
 ## Requirements
 
-  * Rust 1.27
+  * Rust nightly
   * fnv 1.0.6
   * Cargo
 
