@@ -1,6 +1,6 @@
 extern crate fnv;
 
-use std::cmp::{min, Ordering, PartialEq, PartialOrd};
+use std::cmp::{min, max, Ordering, PartialEq, PartialOrd};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::env;
@@ -95,8 +95,10 @@ struct OrderBook<T: IdPriceCache + Sized> {
     cache: T,
     bids_at_price: BTreeMap<Amount, Depth>,
     bids_total_size: i64,
+    bids_max: usize,
     asks_at_price: BTreeMap<Amount, Depth>,
     asks_total_size: i64,
+    asks_max: usize,
     target_size: i64,
     // only 1 side is affected on Reduce or Limit order
     last_action_side: OrderSide, // which side was touched last
@@ -114,6 +116,8 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
             target_size,
             last_action_side: OrderSide::Ask,
             last_action_timestamp: 000_000_000,
+            bids_max: 0,
+            asks_max: 0,
         }
     }
 
@@ -121,9 +125,11 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
         if order.side == OrderSide::Bid {
             *self.bids_at_price.entry(order.price).or_insert(0) += &order.size;
             self.bids_total_size += order.size;
+            self.bids_max = max(self.bids_max, self.bids_at_price.len());
         } else if order.side == OrderSide::Ask {
             *self.asks_at_price.entry(order.price).or_insert(0) += &order.size;
             self.asks_total_size += order.size;
+            self.asks_max = max(self.asks_max, self.asks_at_price.len());
         }
         self.cache.insert(&order);
         self.last_action_timestamp = order.timestamp;
@@ -293,6 +299,7 @@ fn main() {
         }
         *prev = cur;
     }
+    println!("max size of bids: {}, max size of asks: {}", ob.bids_max, ob.asks_max);
 }
 
 #[cfg(test)]
