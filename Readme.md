@@ -211,6 +211,26 @@ git checkout master
        1.642901598 seconds time elapsed
 ```
 
+6. Use a vector for asks instead of a BTreeMap. Perf shows BTreeMap iterators to be one of the most expensive parts of the code and if the vector is cheaper to rewrite in practice - use the vector for cache locality.
+
+```bash
+ Performance counter stats for './target/release/order_book 200':
+
+       1403.698774      cpu-clock (msec)          #    0.999 CPUs utilized          
+       1403.698190      task-clock (msec)         #    0.999 CPUs utilized          
+                 5      cs                        #    0.004 K/sec                  
+        16,423,871      cache-references          #   11.700 M/sec                    (83.19%)
+         8,822,037      cache-misses              #   53.715 % of all cache refs      (83.19%)
+     1,176,295,243      branches                  #  837.997 M/sec                    (83.38%)
+         9,524,183      branch-misses             #    0.81% of all branches          (66.95%)
+     5,817,797,915      instructions              #    2.08  insn per cycle           (83.48%)
+     2,791,995,437      cycles                    #    1.989 GHz                      (83.29%)
+
+       1.404430971 seconds time elapsed
+
+```
+
+
 ## Perf improvements to investigate
 
 1. Currently - reducing an order into oblivion (eg. reduce an order of size 100, by >100) doesn't remove its key from the IdPriceCache. This leads to higher memory usage, if unused keys persist in the cache. It might be useful to remove the key-value pair, if the order is ever completely reduced. 
@@ -224,8 +244,6 @@ Pros:
 
   * if a lookup of previously-deleted key occurs, we can end that branch of logic quickly. Unlikely to occur - clients shouldn't ask to reduce the same order twice.
   * Prevents the BTreeMap from growing too much. Shouldn't matter too much, but on big applications, it's worth preserving heap space for ids with valid data.
-
-2. Check if using a vector for bids and asks is better than a BTreeMap. Perf shows BTreeMap iterators to be one of the most expensive parts of the code and if the vector is cheaper to rewrite in practice - use the vector for cache locality.
 
 ## Motivation
 
