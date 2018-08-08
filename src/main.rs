@@ -1,10 +1,10 @@
+#![feature(extern_prelude)]
 extern crate fnv;
 
 use std::cmp::min;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::env;
-use std::hash::{Hash, Hasher};
 use std::io;
 use std::io::prelude::*;
 
@@ -14,55 +14,8 @@ use amount::Amount;
 mod orderside;
 use orderside::OrderSide;
 
-pub fn hash<T: Hash>(x: T) -> u64 {
-    let mut hasher = fnv::FnvHasher::default();
-    x.hash(&mut hasher);
-    hasher.finish()
-}
-
-#[derive(Debug)]
-struct ReduceOrder {
-    // "28800744 R b 20"
-    timestamp: i64,
-    id: u64,
-    size: i64,
-}
-
-impl ReduceOrder {
-    fn new(input_vec: Vec<&str>) -> Self {
-        ReduceOrder {
-            timestamp: input_vec[0].parse::<i64>().unwrap_or(0),
-            id: hash(&input_vec[2]),
-            size: input_vec[3].parse::<i64>().unwrap_or(0),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct LimitOrder {
-    // "28800538 A b S 44.26 100"
-    timestamp: i64,
-    id: u64,
-    side: OrderSide,
-    price: Amount,
-    size: i64,
-}
-
-impl LimitOrder {
-    fn new(input_vec: Vec<&str>) -> Self {
-        LimitOrder {
-            timestamp: input_vec[0].parse::<i64>().unwrap_or(0),
-            id: hash(input_vec[2]),
-            side: match input_vec[3] {
-                "B" => OrderSide::Bid,
-                "S" => OrderSide::Ask,
-                _ => panic!("Couldn't parse order side from {}", input_vec[3]),
-            },
-            price: Amount::new_from_str(&input_vec[4]),
-            size: input_vec[5].parse::<i64>().unwrap_or(0),
-        }
-    }
-}
+pub mod orders;
+use orders::{hash, LimitOrder, ReduceOrder};
 
 /// Price cache strategy (for benchmarking)
 trait IdPriceCache {
@@ -310,16 +263,6 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn limit_order_constructor() {
-        let lo = LimitOrder::new("28800538 A b S 44.07 100".split(' ').collect());
-        assert_eq!(lo.timestamp, 28800538);
-        assert_eq!(lo.id, hash("b"));
-        assert_eq!(lo.side, OrderSide::Ask);
-        assert_eq!(lo.price.as_int, 4407);
-        assert_eq!(lo.size, 100);
-    }
 
     #[test]
     fn orderbook_constructor_works() {
