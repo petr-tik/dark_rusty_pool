@@ -1,6 +1,6 @@
 extern crate fnv;
 
-use std::cmp::{min, max, Ordering, PartialEq, PartialOrd};
+use std::cmp::min;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::env;
@@ -86,19 +86,16 @@ impl IdPriceCache for IdPriceCacheFnvMap {
 
 type Depth = i64;
 
-type BidsVec = Vec<Amount>;
 type AsksVec = Vec<Amount>;
 type DepthsVec = Vec<Depth>;
-
 
 struct OrderBook<T: IdPriceCache + Sized> {
     cache: T,
     bids_at_price: BTreeMap<Amount, Depth>,
     bids_total_size: i64,
-    bids_max: usize,
-    asks_at_price: BTreeMap<Amount, Depth>,
+    asks_prices: AsksVec,
+    asks_depths: DepthsVec,
     asks_total_size: i64,
-    asks_max: usize,
     target_size: i64,
     // only 1 side is affected on Reduce or Limit order
     last_action_side: OrderSide, // which side was touched last
@@ -107,17 +104,17 @@ struct OrderBook<T: IdPriceCache + Sized> {
 
 impl<T: IdPriceCache + Sized> OrderBook<T> {
     fn new(target_size: i64, cache: T) -> Self {
+        let cap = 256;
         OrderBook {
             cache,
             bids_at_price: BTreeMap::new(),
-            asks_at_price: BTreeMap::new(),
+            asks_prices: AsksVec::with_capacity(cap),
+            asks_depths: DepthsVec::with_capacity(cap),
             bids_total_size: 0,
             asks_total_size: 0,
             target_size,
             last_action_side: OrderSide::Ask,
             last_action_timestamp: 000_000_000,
-            bids_max: 0,
-            asks_max: 0,
         }
     }
 
@@ -125,11 +122,17 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
         if order.side == OrderSide::Bid {
             *self.bids_at_price.entry(order.price).or_insert(0) += &order.size;
             self.bids_total_size += order.size;
-            self.bids_max = max(self.bids_max, self.bids_at_price.len());
         } else if order.side == OrderSide::Ask {
-            *self.asks_at_price.entry(order.price).or_insert(0) += &order.size;
+            match self.asks_prices.binary_search(&order.price) {
+                Ok(idx) => {
+                    self.asks_depths[idx] += order.size;
+                }
+                Err(idx) => {
+                    self.asks_prices.insert(idx, order.price);
+                    self.asks_depths.insert(idx, order.size);
+                }
+            }
             self.asks_total_size += order.size;
-            self.asks_max = max(self.asks_max, self.asks_at_price.len());
         }
         self.cache.insert(&order);
         self.last_action_timestamp = order.timestamp;
@@ -142,9 +145,12 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
             None => panic!("No order under key {}", &order.id),
         };
         if side == &OrderSide::Ask {
-            if let Some(depth) = self.asks_at_price.get_mut(&price) {
-                *depth -= &order.size;
-                self.asks_total_size -= order.size;
+            match self.asks_prices.binary_search(price) {
+                Ok(idx) => {
+                    self.asks_depths[idx] -= &order.size;
+                    self.asks_total_size -= order.size;
+                }
+                Err(_) => {}
             }
         } else if side == &OrderSide::Bid {
             if let Some(depth) = self.bids_at_price.get_mut(&price) {
@@ -180,7 +186,7 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
     fn summarise_amount_from_asks(&self) -> Amount {
         let mut res = Amount::new();
         let mut target_left = self.target_size;
-        for (price, depth) in &self.asks_at_price {
+        for (price, depth) in self.asks_prices.iter().zip(self.asks_depths.iter()) {
             if target_left <= 0 {
                 break;
             }
@@ -299,7 +305,6 @@ fn main() {
         }
         *prev = cur;
     }
-    println!("max size of bids: {}, max size of asks: {}", ob.bids_max, ob.asks_max);
 }
 
 #[cfg(test)]
@@ -340,7 +345,7 @@ mod tests {
         assert_eq!(ob.last_action_timestamp, 28800538);
         assert!(ob.cache.contains_key(&hash("b")));
         let price = Amount::new_from_str("44.26");
-        assert!(ob.asks_at_price.contains_key(&price));
+        assert_eq!(ob.asks_prices.binary_search(&price), Ok(0));
     }
 
     #[test]
@@ -374,7 +379,7 @@ mod tests {
         assert_eq!(ob.last_action_timestamp, 28800744);
         assert!(ob.cache.contains_key(&hash("b")));
         let price = Amount::new_from_str("44.26");
-        assert!(ob.asks_at_price.contains_key(&price));
+        assert_eq!(ob.asks_prices.binary_search(&price), Ok(0));
     }
 
     #[test]
@@ -471,7 +476,7 @@ mod tests {
     }
 
     #[test]
-    fn prices_vec_add() {
+    fn asks_vec_add() {
         let mut vec: AsksVec = AsksVec::with_capacity(10);
         vec.push(Amount::new());
         assert_eq!(vec.len(), 1);
@@ -479,26 +484,26 @@ mod tests {
     }
 
     #[test]
-    fn prices_vec_search_ok() {
-        let mut prices_vec: AsksVec = AsksVec::with_capacity(10);
+    fn asks_vec_search_ok() {
+        let mut asks_vec: AsksVec = AsksVec::with_capacity(10);
         let amounts_vec = ["44.10", "44.20", "60.00", "70.00"];
         for item in amounts_vec.iter() {
             let am_item = Amount::new_from_str(item);
-            prices_vec.push(am_item);
+            asks_vec.push(am_item);
         }
-        let idx = prices_vec.binary_search(&Amount::new_from_str(&"44.20"));
+        let idx = asks_vec.binary_search(&Amount::new_from_str(&"44.20"));
         assert_eq!(idx, Ok(1));
     }
 
     #[test]
-    fn prices_vec_search_err() {
-        let mut prices_vec: AsksVec = AsksVec::with_capacity(10);
+    fn asks_vec_search_err() {
+        let mut asks_vec: AsksVec = AsksVec::with_capacity(10);
         let amounts_vec = ["44.10", "44.20", "60.00", "70.00"];
         for item in amounts_vec.iter() {
             let am_item = Amount::new_from_str(item);
-            prices_vec.push(am_item);
+            asks_vec.push(am_item);
         }
-        let idx = prices_vec.binary_search(&Amount::new_from_str(&"84.20"));
+        let idx = asks_vec.binary_search(&Amount::new_from_str(&"84.20"));
         assert_eq!(idx, Err(4));
     }
 
