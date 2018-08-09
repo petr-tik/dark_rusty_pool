@@ -71,21 +71,25 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
         }
     }
 
+    fn _add_to_asks(&mut self, order: &LimitOrder) {
+        match self.asks_prices.binary_search(&order.price) {
+            Ok(idx) => {
+                self.asks_depths[idx] += order.size;
+            }
+            Err(idx) => {
+                self.asks_prices.insert(idx, order.price);
+                self.asks_depths.insert(idx, order.size);
+            }
+        }
+        self.asks_total_size += order.size;
+    }
+
     fn add(&mut self, order: LimitOrder) {
         if order.side == OrderSide::Bid {
             *self.bids_at_price.entry(order.price).or_insert(0) += &order.size;
             self.bids_total_size += order.size;
         } else if order.side == OrderSide::Ask {
-            match self.asks_prices.binary_search(&order.price) {
-                Ok(idx) => {
-                    self.asks_depths[idx] += order.size;
-                }
-                Err(idx) => {
-                    self.asks_prices.insert(idx, order.price);
-                    self.asks_depths.insert(idx, order.size);
-                }
-            }
-            self.asks_total_size += order.size;
+            self._add_to_asks(&order);
         }
         self.cache.insert(&order);
         self.last_action_timestamp = order.timestamp;
