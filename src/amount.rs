@@ -75,7 +75,6 @@ impl<'a> From<&'a BidAmount> for Amount {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

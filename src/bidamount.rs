@@ -82,7 +82,6 @@ impl Display for BidAmount {
     }
 }
 
-
 impl From<Amount> for BidAmount {
     fn from(item: Amount) -> Self {
         BidAmount {
@@ -98,7 +97,6 @@ impl<'a> From<&'a Amount> for BidAmount {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -186,13 +184,11 @@ mod tests {
         assert_eq!(v.binary_search(&BidAmount::new_from_str("44.99")), Err(3));
     }
 
-
     #[test]
     fn convert_from_amount_to_bidamount() {
         let a = Amount::new();
         let ba: BidAmount = a.into();
         assert_eq!(ba, BidAmount::new());
-
     }
 
     #[test]
@@ -201,6 +197,5 @@ mod tests {
         let ba: &BidAmount = &a.into();
         assert_eq!(ba, &BidAmount::new());
     }
-
 
 }
