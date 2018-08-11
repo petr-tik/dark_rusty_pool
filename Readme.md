@@ -230,6 +230,24 @@ git checkout master
 
 ```
 
+7. Use a vector for bids as well instead of a BTreeMap. Same reasoning as the previous point - took more time to implement. 
+
+```bash
+ Performance counter stats for './target/release/order_book 200':
+
+       1214.573986      cpu-clock (msec)          #    0.999 CPUs utilized          
+       1214.574111      task-clock (msec)         #    0.999 CPUs utilized          
+                 2      cs                        #    0.002 K/sec                  
+        15,969,031      cache-references          #   13.148 M/sec                    (83.21%)
+         8,445,441      cache-misses              #   52.886 % of all cache refs      (83.21%)
+     1,059,887,133      branches                  #  872.641 M/sec                    (83.21%)
+         9,499,973      branch-misses             #    0.90% of all branches          (67.07%)
+     5,387,370,693      instructions              #    2.23  insn per cycle           (83.54%)
+     2,416,001,809      cycles                    #    1.989 GHz                      (83.31%)
+
+       1.215423057 seconds time elapsed
+```
+
 
 ## Perf improvements to investigate
 
