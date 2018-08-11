@@ -38,16 +38,22 @@ The order book allows adding new orders, reducing current ones and printing the 
 ```rust
 type Depth = i64;
 
+type BidsVec = Vec<BidAmount>;
+type AsksVec = Vec<Amount>;
+type DepthsVec = Vec<Depth>;
+
 struct OrderBook<T: IdPriceCache + Sized> {
     cache: T,
-    bids_at_price: BTreeMap<Amount, Depth>,
     bids_total_size: i64,
-    asks_at_price: BTreeMap<Amount, Depth>,
+    asks_prices: AsksVec,
+    asks_depths: DepthsVec,
+    bids_prices: BidsVec,
+    bids_depths: DepthsVec,
     asks_total_size: i64,
     target_size: i64,
     // only 1 side is affected on Reduce or Limit order
-    last_action_side: OrderSide,   // which side was touched last
-    last_action_timestamp: String, // timestamp of last touched side
+    last_action_side: OrderSide, // which side was touched last
+    last_action_timestamp: i64,  // timestamp of last touched side
 }
 ```
 
