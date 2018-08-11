@@ -11,6 +11,9 @@ use std::io::prelude::*;
 mod amount;
 use amount::Amount;
 
+mod bidamount;
+use bidamount::BidAmount;
+
 mod orderside;
 use orderside::OrderSide;
 
@@ -39,11 +42,17 @@ impl IdPriceCache for IdPriceCacheFnvMap {
 
 type Depth = i64;
 
+type BidsVec = Vec<BidAmount>;
+type AsksVec = Vec<Amount>;
+type DepthsVec = Vec<Depth>;
+
 struct OrderBook<T: IdPriceCache + Sized> {
     cache: T,
-    bids_at_price: BTreeMap<Amount, Depth>,
     bids_total_size: i64,
-    asks_at_price: BTreeMap<Amount, Depth>,
+    asks_prices: AsksVec,
+    asks_depths: DepthsVec,
+    bids_prices: BidsVec,
+    bids_depths: DepthsVec,
     asks_total_size: i64,
     target_size: i64,
     // only 1 side is affected on Reduce or Limit order
@@ -53,10 +62,13 @@ struct OrderBook<T: IdPriceCache + Sized> {
 
 impl<T: IdPriceCache + Sized> OrderBook<T> {
     fn new(target_size: i64, cache: T) -> Self {
+        let cap = 256;
         OrderBook {
             cache,
-            bids_at_price: BTreeMap::new(),
-            asks_at_price: BTreeMap::new(),
+            asks_prices: AsksVec::with_capacity(cap),
+            asks_depths: DepthsVec::with_capacity(cap),
+            bids_prices: BidsVec::with_capacity(cap),
+            bids_depths: DepthsVec::with_capacity(cap),
             bids_total_size: 0,
             asks_total_size: 0,
             target_size,
@@ -65,13 +77,37 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
         }
     }
 
+    fn _add_to_asks(&mut self, order: &LimitOrder) {
+        match self.asks_prices.binary_search(&order.price) {
+            Ok(idx) => {
+                self.asks_depths[idx] += order.size;
+            }
+            Err(idx) => {
+                self.asks_prices.insert(idx, order.price);
+                self.asks_depths.insert(idx, order.size);
+            }
+        }
+        self.asks_total_size += order.size;
+    }
+
+    fn _add_to_bids(&mut self, order: &LimitOrder) {
+        match self.bids_prices.binary_search(&order.price.into()) {
+            Ok(idx) => {
+                self.bids_depths[idx] += order.size;
+            }
+            Err(idx) => {
+                self.bids_prices.insert(idx, order.price.into());
+                self.bids_depths.insert(idx, order.size);
+            }
+        }
+        self.bids_total_size += order.size;
+    }
+
     fn add(&mut self, order: LimitOrder) {
         if order.side == OrderSide::Bid {
-            *self.bids_at_price.entry(order.price).or_insert(0) += &order.size;
-            self.bids_total_size += order.size;
+            self._add_to_bids(&order);
         } else if order.side == OrderSide::Ask {
-            *self.asks_at_price.entry(order.price).or_insert(0) += &order.size;
-            self.asks_total_size += order.size;
+            self._add_to_asks(&order);
         }
         self.cache.insert(&order);
         self.last_action_timestamp = order.timestamp;
@@ -84,14 +120,20 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
             None => panic!("No order under key {}", &order.id),
         };
         if side == &OrderSide::Ask {
-            if let Some(depth) = self.asks_at_price.get_mut(&price) {
-                *depth -= &order.size;
-                self.asks_total_size -= order.size;
+            match self.asks_prices.binary_search(price) {
+                Ok(idx) => {
+                    self.asks_depths[idx] -= &order.size;
+                    self.asks_total_size -= order.size;
+                }
+                Err(_) => {}
             }
         } else if side == &OrderSide::Bid {
-            if let Some(depth) = self.bids_at_price.get_mut(&price) {
-                *depth -= &order.size;
-                self.bids_total_size -= order.size;
+            match self.bids_prices.binary_search(&price.into()) {
+                Ok(idx) => {
+                    self.bids_depths[idx] -= &order.size;
+                    self.bids_total_size -= order.size;
+                }
+                Err(_) => {}
             }
         }
         self.last_action_timestamp = order.timestamp;
@@ -122,7 +164,7 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
     fn summarise_amount_from_asks(&self) -> Amount {
         let mut res = Amount::new();
         let mut target_left = self.target_size;
-        for (price, depth) in &self.asks_at_price {
+        for (price, depth) in self.asks_prices.iter().zip(self.asks_depths.iter()) {
             if target_left <= 0 {
                 break;
             }
@@ -139,12 +181,9 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
     }
 
     fn summarise_amount_from_bids(&self) -> Amount {
-        let mut res = Amount::new();
+        let mut res = BidAmount::new();
         let mut target_left = self.target_size;
-        // BTreeMap is sorted in ascending order
-        // but you want to sell in descending order
-        // (higher is better)
-        for (price, depth) in self.bids_at_price.iter().rev() {
+        for (price, depth) in self.bids_prices.iter().zip(self.bids_depths.iter()) {
             if target_left <= 0 {
                 break;
             }
@@ -152,10 +191,11 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
                 continue;
             }
             let available_in_this_bucket = min(*depth, target_left);
+
             res += *price * available_in_this_bucket;
             target_left -= available_in_this_bucket;
         }
-        res
+        res.into()
     }
 
     fn process(&mut self, instruction: &str) {
@@ -271,7 +311,7 @@ mod tests {
         assert_eq!(ob.last_action_timestamp, 28800538);
         assert!(ob.cache.contains_key(&hash("b")));
         let price = Amount::new_from_str("44.26");
-        assert!(ob.asks_at_price.contains_key(&price));
+        assert_eq!(ob.asks_prices.binary_search(&price), Ok(0));
     }
 
     #[test]
@@ -287,7 +327,7 @@ mod tests {
         assert_eq!(ob.last_action_timestamp, 28800538);
         assert!(ob.cache.contains_key(&hash("b")));
         let price = Amount::new_from_str("44.26");
-        assert!(ob.bids_at_price.contains_key(&price));
+        assert_eq!(ob.bids_prices.binary_search(&price.into()), Ok(0));
     }
 
     #[test]
@@ -305,7 +345,7 @@ mod tests {
         assert_eq!(ob.last_action_timestamp, 28800744);
         assert!(ob.cache.contains_key(&hash("b")));
         let price = Amount::new_from_str("44.26");
-        assert!(ob.asks_at_price.contains_key(&price));
+        assert_eq!(ob.asks_prices.binary_search(&price), Ok(0));
     }
 
     #[test]
@@ -323,7 +363,7 @@ mod tests {
         assert_eq!(ob.summarise_target(), None);
         assert!(ob.cache.contains_key(&hash("b")));
         let price = Amount::new_from_str("44.26");
-        assert!(ob.bids_at_price.contains_key(&price));
+        assert_eq!(ob.bids_prices.binary_search(&price.into()), Ok(0));
     }
 
     #[test]
@@ -387,6 +427,50 @@ mod tests {
         assert_eq!(ob.summarise_target(), Some(Amount::new_from_str("8832.56")));
 
         ob.process("28800796 R d 157");
+    }
+
+    #[test]
+    fn prices_vec_with_capacity() {
+        let vec: AsksVec = AsksVec::with_capacity(10);
+        assert_eq!(vec.len(), 0);
+    }
+
+    #[test]
+    fn prices_vec_len() {
+        let vec: AsksVec = AsksVec::with_capacity(10);
+        assert_eq!(vec.len(), 0);
+    }
+
+    #[test]
+    fn asks_vec_add() {
+        let mut vec: AsksVec = AsksVec::with_capacity(10);
+        vec.push(Amount::new());
+        assert_eq!(vec.len(), 1);
+        assert_eq!(vec[0], Amount::new());
+    }
+
+    #[test]
+    fn asks_vec_search_ok() {
+        let mut asks_vec: AsksVec = AsksVec::with_capacity(10);
+        let amounts_vec = ["44.10", "44.20", "60.00", "70.00"];
+        for item in amounts_vec.iter() {
+            let am_item = Amount::new_from_str(item);
+            asks_vec.push(am_item);
+        }
+        let idx = asks_vec.binary_search(&Amount::new_from_str(&"44.20"));
+        assert_eq!(idx, Ok(1));
+    }
+
+    #[test]
+    fn asks_vec_search_err() {
+        let mut asks_vec: AsksVec = AsksVec::with_capacity(10);
+        let amounts_vec = ["44.10", "44.20", "60.00", "70.00"];
+        for item in amounts_vec.iter() {
+            let am_item = Amount::new_from_str(item);
+            asks_vec.push(am_item);
+        }
+        let idx = asks_vec.binary_search(&Amount::new_from_str(&"84.20"));
+        assert_eq!(idx, Err(4));
     }
 
 }

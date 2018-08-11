@@ -1,6 +1,8 @@
 use std::fmt::{Display, Formatter, Result};
 use std::ops::{AddAssign, Mul, MulAssign};
 
+use bidamount::BidAmount;
+
 // run unit tests with
 // cargo test -- amount
 
@@ -57,6 +59,22 @@ impl Display for Amount {
     }
 }
 
+impl From<BidAmount> for Amount {
+    fn from(item: BidAmount) -> Self {
+        Amount {
+            as_int: item.as_int,
+        }
+    }
+}
+
+impl<'a> From<&'a BidAmount> for Amount {
+    fn from(item: &'a BidAmount) -> Self {
+        Amount {
+            as_int: item.as_int,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -109,5 +127,19 @@ mod tests {
         let mut res = String::new();
         write!(&mut res, "{}", am1).unwrap();
         assert_eq!(res, input_string);
+    }
+
+    #[test]
+    fn convert_from_bidamount_to_amount() {
+        let ba = BidAmount::new();
+        let a: Amount = ba.into();
+        assert_eq!(a, Amount::new());
+    }
+
+    #[test]
+    fn convert_from_ref_bidamount_to_amount() {
+        let ba = BidAmount::new();
+        let a: &Amount = &ba.into();
+        assert_eq!(a, &Amount::new());
     }
 }

@@ -38,16 +38,22 @@ The order book allows adding new orders, reducing current ones and printing the 
 ```rust
 type Depth = i64;
 
+type BidsVec = Vec<BidAmount>;
+type AsksVec = Vec<Amount>;
+type DepthsVec = Vec<Depth>;
+
 struct OrderBook<T: IdPriceCache + Sized> {
     cache: T,
-    bids_at_price: BTreeMap<Amount, Depth>,
     bids_total_size: i64,
-    asks_at_price: BTreeMap<Amount, Depth>,
+    asks_prices: AsksVec,
+    asks_depths: DepthsVec,
+    bids_prices: BidsVec,
+    bids_depths: DepthsVec,
     asks_total_size: i64,
     target_size: i64,
     // only 1 side is affected on Reduce or Limit order
-    last_action_side: OrderSide,   // which side was touched last
-    last_action_timestamp: String, // timestamp of last touched side
+    last_action_side: OrderSide, // which side was touched last
+    last_action_timestamp: i64,  // timestamp of last touched side
 }
 ```
 
@@ -211,6 +217,44 @@ git checkout master
        1.642901598 seconds time elapsed
 ```
 
+6. Use a vector for asks instead of a BTreeMap. Perf shows BTreeMap iterators to be one of the most expensive parts of the code and if the vector is cheaper to rewrite in practice - use the vector for cache locality.
+
+```bash
+ Performance counter stats for './target/release/order_book 200':
+
+       1403.698774      cpu-clock (msec)          #    0.999 CPUs utilized          
+       1403.698190      task-clock (msec)         #    0.999 CPUs utilized          
+                 5      cs                        #    0.004 K/sec                  
+        16,423,871      cache-references          #   11.700 M/sec                    (83.19%)
+         8,822,037      cache-misses              #   53.715 % of all cache refs      (83.19%)
+     1,176,295,243      branches                  #  837.997 M/sec                    (83.38%)
+         9,524,183      branch-misses             #    0.81% of all branches          (66.95%)
+     5,817,797,915      instructions              #    2.08  insn per cycle           (83.48%)
+     2,791,995,437      cycles                    #    1.989 GHz                      (83.29%)
+
+       1.404430971 seconds time elapsed
+
+```
+
+7. Use a vector for bids as well instead of a BTreeMap. Same reasoning as the previous point - took more time to implement. 
+
+```bash
+ Performance counter stats for './target/release/order_book 200':
+
+       1214.573986      cpu-clock (msec)          #    0.999 CPUs utilized          
+       1214.574111      task-clock (msec)         #    0.999 CPUs utilized          
+                 2      cs                        #    0.002 K/sec                  
+        15,969,031      cache-references          #   13.148 M/sec                    (83.21%)
+         8,445,441      cache-misses              #   52.886 % of all cache refs      (83.21%)
+     1,059,887,133      branches                  #  872.641 M/sec                    (83.21%)
+         9,499,973      branch-misses             #    0.90% of all branches          (67.07%)
+     5,387,370,693      instructions              #    2.23  insn per cycle           (83.54%)
+     2,416,001,809      cycles                    #    1.989 GHz                      (83.31%)
+
+       1.215423057 seconds time elapsed
+```
+
+
 ## Perf improvements to investigate
 
 1. Currently - reducing an order into oblivion (eg. reduce an order of size 100, by >100) doesn't remove its key from the IdPriceCache. This leads to higher memory usage, if unused keys persist in the cache. It might be useful to remove the key-value pair, if the order is ever completely reduced. 
@@ -224,8 +268,6 @@ Pros:
 
   * if a lookup of previously-deleted key occurs, we can end that branch of logic quickly. Unlikely to occur - clients shouldn't ask to reduce the same order twice.
   * Prevents the BTreeMap from growing too much. Shouldn't matter too much, but on big applications, it's worth preserving heap space for ids with valid data.
-
-2. Check if using a vector for bids and asks is better than a BTreeMap. Perf shows BTreeMap iterators to be one of the most expensive parts of the code and if the vector is cheaper to rewrite in practice - use the vector for cache locality.
 
 ## Motivation
 
