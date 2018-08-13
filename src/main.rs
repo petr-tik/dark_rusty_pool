@@ -2,7 +2,6 @@
 extern crate fnv;
 
 use std::cmp::min;
-use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::env;
 use std::io;
@@ -18,7 +17,7 @@ mod orderside;
 use orderside::OrderSide;
 
 pub mod orders;
-use orders::{hash, LimitOrder, ReduceOrder};
+use orders::{LimitOrder, ReduceOrder};
 
 /// Price cache strategy (for benchmarking)
 trait IdPriceCache {
@@ -103,13 +102,13 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
         self.bids_total_size += order.size;
     }
 
-    fn add(&mut self, order: LimitOrder) {
+    fn add(&mut self, order: &LimitOrder) {
         if order.side == OrderSide::Bid {
-            self._add_to_bids(&order);
+            self._add_to_bids(order);
         } else if order.side == OrderSide::Ask {
-            self._add_to_asks(&order);
+            self._add_to_asks(order);
         }
-        self.cache.insert(&order);
+        self.cache.insert(order);
         self.last_action_timestamp = order.timestamp;
         self.last_action_side = order.side;
     }
@@ -120,20 +119,14 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
             None => panic!("No order under key {}", &order.id),
         };
         if side == &OrderSide::Ask {
-            match self.asks_prices.binary_search(price) {
-                Ok(idx) => {
-                    self.asks_depths[idx] -= &order.size;
-                    self.asks_total_size -= order.size;
-                }
-                Err(_) => {}
+            if let Ok(idx) = self.asks_prices.binary_search(price) {
+                self.asks_depths[idx] -= &order.size;
+                self.asks_total_size -= order.size;
             }
         } else if side == &OrderSide::Bid {
-            match self.bids_prices.binary_search(&price.into()) {
-                Ok(idx) => {
-                    self.bids_depths[idx] -= &order.size;
-                    self.bids_total_size -= order.size;
-                }
-                Err(_) => {}
+            if let Ok(idx) = self.bids_prices.binary_search(&price.into()) {
+                self.bids_depths[idx] -= &order.size;
+                self.bids_total_size -= order.size;
             }
         }
         self.last_action_timestamp = order.timestamp;
@@ -201,7 +194,7 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
     fn process(&mut self, instruction: &str) {
         let order_vec: Vec<&str> = instruction.trim().split(' ').collect();
         if order_vec[1] == "A" {
-            self.add(LimitOrder::new(order_vec));
+            self.add(&LimitOrder::new(order_vec));
         } else if order_vec[1] == "R" {
             self.reduce_order(&ReduceOrder::new(order_vec));
         } else {
@@ -286,6 +279,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use orders::hash;
 
     #[test]
     fn orderbook_constructor_works() {
@@ -303,7 +297,7 @@ mod tests {
         let target_size = 200;
         let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
         let ask = LimitOrder::new("28800538 A b S 44.26 100".split(' ').collect());
-        ob.add(ask);
+        ob.add(&ask);
         assert_eq!(ob.asks_total_size, 100);
         assert_eq!(ob.bids_total_size, 0);
         assert_eq!(ob.summarise_target(), None);
@@ -319,7 +313,7 @@ mod tests {
         let target_size = 200;
         let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
         let bid = LimitOrder::new("28800538 A b B 44.26 100".split(' ').collect());
-        ob.add(bid);
+        ob.add(&bid);
         assert_eq!(ob.bids_total_size, 100);
         assert_eq!(ob.asks_total_size, 0);
         assert_eq!(ob.summarise_target(), None);
@@ -335,7 +329,7 @@ mod tests {
         let target_size = 200;
         let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
         let ask = LimitOrder::new("28800538 A b S 44.26 100".split(' ').collect());
-        ob.add(ask);
+        ob.add(&ask);
         let ro = ReduceOrder::new("28800744 R b 20".split(' ').collect());
         ob.reduce_order(&ro);
         assert_eq!(ob.asks_total_size, 80);
@@ -353,7 +347,7 @@ mod tests {
         let target_size = 200;
         let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
         let bid = LimitOrder::new("28800538 A b B 44.26 100".split(' ').collect());
-        ob.add(bid);
+        ob.add(&bid);
         let ro = ReduceOrder::new("28800744 R b 20".split(' ').collect());
         ob.reduce_order(&ro);
         assert_eq!(ob.bids_total_size, 80);
@@ -371,11 +365,11 @@ mod tests {
         let target_size = 200;
         let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
         let bid = LimitOrder::new("28800538 A b B 44.26 100".split(' ').collect());
-        ob.add(bid);
+        ob.add(&bid);
         let ro = ReduceOrder::new("28800744 R b 20".split(' ').collect());
         ob.reduce_order(&ro);
         let bid2 = LimitOrder::new("28800986 A c B 44.07 500".split(' ').collect());
-        ob.add(bid2);
+        ob.add(&bid2);
         let ret = ob.summarise_target();
         assert_eq!(ob.bids_total_size, 580);
         assert_eq!(ob.asks_total_size, 0);
