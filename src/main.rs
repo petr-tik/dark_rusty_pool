@@ -1,8 +1,9 @@
-#![feature(extern_prelude)]
-extern crate fnv;
+extern crate hashbrown;
+extern crate rustc_hash;
 
 use std::cmp::min;
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
 use std::env;
 use std::io;
 use std::io::prelude::*;
@@ -26,8 +27,8 @@ trait IdPriceCache {
     fn get(&self, key: &u64) -> Option<&(Amount, OrderSide)>;
 }
 
-type IdPriceCacheFnvMap = fnv::FnvHashMap<u64, (Amount, OrderSide)>;
-impl IdPriceCache for IdPriceCacheFnvMap {
+type IdPriceCacheMap = hashbrown::HashMap<u64, (Amount, OrderSide)>;
+impl IdPriceCache for IdPriceCacheMap {
     fn insert(&mut self, order: &LimitOrder) {
         self.insert(order.id, (order.price, order.side));
     }
@@ -230,9 +231,9 @@ fn main() {
     let cache_capacity = 50000;
     let mut ob = OrderBook::new(
         target_size,
-        IdPriceCacheFnvMap::with_capacity_and_hasher(
+        IdPriceCacheMap::with_capacity_and_hasher(
             cache_capacity,
-            std::hash::BuildHasherDefault::<fnv::FnvHasher>::default(),
+            std::hash::BuildHasherDefault::<DefaultHasher>::default(),
         ),
     );
     let mut reports = prepare_reports();
@@ -284,7 +285,7 @@ mod tests {
     #[test]
     fn orderbook_constructor_works() {
         let target_size = 500;
-        let ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
+        let ob = OrderBook::new(target_size, IdPriceCacheMap::default());
         assert_eq!(ob.bids_total_size, 0);
         assert_eq!(ob.asks_total_size, 0);
         assert_eq!(ob.target_size, target_size);
@@ -295,7 +296,7 @@ mod tests {
     #[test]
     fn orderbook_add_ask() {
         let target_size = 200;
-        let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
+        let mut ob = OrderBook::new(target_size, IdPriceCacheMap::default());
         let ask = LimitOrder::new("28800538 A b S 44.26 100".split(' ').collect());
         ob.add(&ask);
         assert_eq!(ob.asks_total_size, 100);
@@ -311,7 +312,7 @@ mod tests {
     #[test]
     fn orderbook_add_bid() {
         let target_size = 200;
-        let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
+        let mut ob = OrderBook::new(target_size, IdPriceCacheMap::default());
         let bid = LimitOrder::new("28800538 A b B 44.26 100".split(' ').collect());
         ob.add(&bid);
         assert_eq!(ob.bids_total_size, 100);
@@ -327,7 +328,7 @@ mod tests {
     #[test]
     fn orderbook_reduce_ask() {
         let target_size = 200;
-        let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
+        let mut ob = OrderBook::new(target_size, IdPriceCacheMap::default());
         let ask = LimitOrder::new("28800538 A b S 44.26 100".split(' ').collect());
         ob.add(&ask);
         let ro = ReduceOrder::new("28800744 R b 20".split(' ').collect());
@@ -345,7 +346,7 @@ mod tests {
     #[test]
     fn orderbook_reduce_bid() {
         let target_size = 200;
-        let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
+        let mut ob = OrderBook::new(target_size, IdPriceCacheMap::default());
         let bid = LimitOrder::new("28800538 A b B 44.26 100".split(' ').collect());
         ob.add(&bid);
         let ro = ReduceOrder::new("28800744 R b 20".split(' ').collect());
@@ -363,7 +364,7 @@ mod tests {
     #[test]
     fn orderbook_add_reduce_add() {
         let target_size = 200;
-        let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
+        let mut ob = OrderBook::new(target_size, IdPriceCacheMap::default());
         let bid = LimitOrder::new("28800538 A b B 44.26 100".split(' ').collect());
         ob.add(&bid);
         let ro = ReduceOrder::new("28800744 R b 20".split(' ').collect());
@@ -383,7 +384,7 @@ mod tests {
     #[test]
     fn run_through_basic() {
         let target_size = 200;
-        let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
+        let mut ob = OrderBook::new(target_size, IdPriceCacheMap::default());
         ob.process("28800538 A b S 44.26 100");
         assert_eq!(ob.asks_total_size, 100);
         assert_eq!(ob.bids_total_size, 0);

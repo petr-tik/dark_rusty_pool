@@ -2,9 +2,10 @@ use std::hash::{Hash, Hasher};
 
 use super::amount::Amount;
 use super::orderside::OrderSide;
+use std::collections::hash_map::DefaultHasher;
 
 pub fn hash<T: Hash>(x: T) -> u64 {
-    let mut hasher = fnv::FnvHasher::default();
+    let mut hasher = DefaultHasher::default();
     x.hash(&mut hasher);
     hasher.finish()
 }
