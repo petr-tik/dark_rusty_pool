@@ -7,7 +7,7 @@ use amount::Amount;
 // run unit tests with
 // cargo test -- amount
 
-#[derive(Copy, Clone, Debug, Eq, Hash)] // allows us to use BidAmount as a HashMap key
+#[derive(Copy, Clone, Debug, Eq)] // allows us to use BidAmount as a HashMap key
 pub struct BidAmount {
     pub as_int: i64,
 }

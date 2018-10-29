@@ -5,6 +5,8 @@ authors = ["petr-tik <petr-tik@users.noreply.github.com>"]
 
 [dependencies]
 fnv = "1.0.6"
+hashbrown = "0.1"
+rustc-hash = "*"
 
 [profile.release]
 opt-level=3
