@@ -17,7 +17,7 @@ impl BidAmount {
         BidAmount { as_int: 0 }
     }
 
-    #[test]
+    #[cfg(test)]
     fn new_from_str(input_string: &str) -> Self {
         let float_from_input = input_string.parse::<f64>();
         let float_res = match float_from_input {
