@@ -7,7 +7,7 @@ use amount::Amount;
 // run unit tests with
 // cargo test -- amount
 
-#[derive(Copy, Clone, Debug, Eq, Hash)] // allows us to use BidAmount as a HashMap key
+#[derive(Copy, Clone, Debug, Eq)] // allows us to use BidAmount as a HashMap key
 pub struct BidAmount {
     pub as_int: i64,
 }
@@ -17,7 +17,8 @@ impl BidAmount {
         BidAmount { as_int: 0 }
     }
 
-    pub fn new_from_str(input_string: &str) -> Self {
+    #[test]
+    fn new_from_str(input_string: &str) -> Self {
         let float_from_input = input_string.parse::<f64>();
         let float_res = match float_from_input {
             Ok(number_to_round) => number_to_round,

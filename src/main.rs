@@ -1,8 +1,6 @@
-#![feature(extern_prelude)]
 extern crate fnv;
 
 use std::cmp::min;
-use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::env;
 use std::io;
@@ -18,7 +16,7 @@ mod orderside;
 use orderside::OrderSide;
 
 pub mod orders;
-use orders::{hash, LimitOrder, ReduceOrder};
+use orders::{LimitOrder, ReduceOrder};
 
 /// Price cache strategy (for benchmarking)
 trait IdPriceCache {
@@ -120,20 +118,14 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
             None => panic!("No order under key {}", &order.id),
         };
         if side == &OrderSide::Ask {
-            match self.asks_prices.binary_search(price) {
-                Ok(idx) => {
-                    self.asks_depths[idx] -= &order.size;
-                    self.asks_total_size -= order.size;
-                }
-                Err(_) => {}
+            if let Ok(idx) = self.asks_prices.binary_search(price) {
+                self.asks_depths[idx] -= &order.size;
+                self.asks_total_size -= order.size;
             }
         } else if side == &OrderSide::Bid {
-            match self.bids_prices.binary_search(&price.into()) {
-                Ok(idx) => {
-                    self.bids_depths[idx] -= &order.size;
-                    self.bids_total_size -= order.size;
-                }
-                Err(_) => {}
+            if let Ok(idx) = self.bids_prices.binary_search(&price.into()) {
+                self.bids_depths[idx] -= &order.size;
+                self.bids_total_size -= order.size;
             }
         }
         self.last_action_timestamp = order.timestamp;
@@ -142,12 +134,12 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
 
     fn summarise_target(&self) -> Option<Amount> {
         /*
-        Summarises income gained from selling self.target_size of shares or expense of buying self.target_size shares. If last side is Bid/Buy - we need to summarise 
+        Summarises income gained from selling self.target_size of shares or expense of buying self.target_size shares. If last side is Bid/Buy - we need to summarise
 
-        Relies on change of state of last_action_side attribute. 
+        Relies on change of state of last_action_side attribute.
         Every add_order and reduce order api call need to update the last_action_side.
 
-        Returning None, means there aren't enough bids to sell to 
+        Returning None, means there aren't enough bids to sell to
         or asks to buy.
 
          */
@@ -201,9 +193,9 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
     fn process(&mut self, instruction: &str) {
         let order_vec: Vec<&str> = instruction.trim().split(' ').collect();
         if order_vec[1] == "A" {
-            self.add(LimitOrder::new(order_vec));
+            self.add(LimitOrder::new(&order_vec));
         } else if order_vec[1] == "R" {
-            self.reduce_order(&ReduceOrder::new(order_vec));
+            self.reduce_order(&ReduceOrder::new(&order_vec));
         } else {
             eprintln!("Error processing {}", instruction);
         }
@@ -259,7 +251,8 @@ fn main() {
                     ob.last_action_timestamp,
                     !ob.last_action_side,
                     cur.unwrap()
-                ).expect("cannot lock");
+                )
+                .expect("cannot lock");
             } else {
                 continue;
             }
@@ -270,14 +263,16 @@ fn main() {
                 ob.last_action_timestamp,
                 !ob.last_action_side,
                 cur.unwrap()
-            ).expect("cannot lock");
+            )
+            .expect("cannot lock");
         } else if cur.is_none() && prev.is_some() {
             writeln!(
                 stdout.lock(),
                 "{} {} NA",
                 ob.last_action_timestamp,
                 !ob.last_action_side
-            ).expect("cannot lock");
+            )
+            .expect("cannot lock");
         }
         *prev = cur;
     }
@@ -286,6 +281,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use orders::hash;
 
     #[test]
     fn orderbook_constructor_works() {

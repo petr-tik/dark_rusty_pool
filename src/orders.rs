@@ -18,7 +18,7 @@ pub struct ReduceOrder {
 }
 
 impl ReduceOrder {
-    pub fn new(input_vec: Vec<&str>) -> Self {
+    pub fn new(input_vec: &[&str]) -> Self {
         assert!(input_vec.len() <= 4);
         ReduceOrder {
             timestamp: input_vec[0].parse::<i64>().unwrap_or(0),
@@ -28,7 +28,7 @@ impl ReduceOrder {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct LimitOrder {
     // "28800538 A b S 44.26 100"
     pub timestamp: i64,
@@ -39,7 +39,7 @@ pub struct LimitOrder {
 }
 
 impl LimitOrder {
-    pub fn new(input_vec: Vec<&str>) -> Self {
+    pub fn new(input_vec: &[&str]) -> Self {
         assert!(input_vec.len() <= 6);
         LimitOrder {
             timestamp: input_vec[0].parse::<i64>().unwrap_or(0),
