@@ -254,6 +254,38 @@ git checkout master
        1.215423057 seconds time elapsed
 ```
 
+8. Tried Profile Guided Optimisation. Was expecting pretty impressive results, given that the "training data set" was going to be the same as the testing data set. 
+
+Requires `nightly` and `llvm-profdata-6.0` tool to read and merge profdata files for rustc to pass to llvm for the final build. 
+
+Using the script below to build an instrumented version, profile it and rebuild the final release binary. 
+
+```bash
+env RUSTFLAGS="-Z pgo-gen=target/pgo/pgo.profraw" cargo +nightly run --target-dir target/pgo/gen -- 200 < data/pricer.in > /dev/null
+llvm-profdata-6.0 merge -o target/pgo/pgo.profdata target/pgo/pgo.profraw
+env RUSTFLAGS="-Z pgo-use=target/pgo/pgo.profdata" cargo +nightly build --release
+sync && sudo sh -c "echo 3 > /proc/sys/vm/drop_caches"
+sudo perf stat -e cpu-clock,task-clock,cs,cache-references,cache-misses,branches,branch-misses,instructions,cycles ./target/release/order_book 200 < data/pricer.in > /dev/null
+```
+
+```bash
+Performance counter stats for './target/release/order_book 200':
+
+       1225.020897      cpu-clock (msec)          #    0.999 CPUs utilized
+       1225.020757      task-clock (msec)         #    0.999 CPUs utilized
+                 6      cs                        #    0.005 K/sec
+        15,821,492      cache-references          #   12.915 M/sec                    (83.35%)
+         8,073,978      cache-misses              #   51.032 % of all cache refs      (83.35%)
+     1,070,191,230      branches                  #  873.611 M/sec                    (83.35%)
+        10,120,606      branch-misses             #    0.95% of all branches          (66.69%)
+     5,168,731,552      instructions              #    2.12  insn per cycle           (83.35%)
+     2,437,542,802      cycles                    #    1.990 GHz                      (83.26%)
+
+       1.225669754 seconds time elapsed
+```
+
+As far as I understand PGO, the metric I should be looking at is the number of instructions executed. The number went from 5,387,370,693 to 5,168,731,552, but the time overall didn't, because instructions per cycle went down. 
+
 
 ## Perf improvements to investigate
 
