@@ -61,7 +61,8 @@ mod tests {
 
     #[test]
     fn limit_order_constructor() {
-        let lo = LimitOrder::new("28800538 A b S 44.07 100".split(' ').collect());
+        let lo_vec: Vec<&str> = "28800538 A b S 44.07 100".split(' ').collect();
+        let lo = LimitOrder::new(&lo_vec);
         assert_eq!(lo.timestamp, 28800538);
         assert_eq!(lo.id, hash("b"));
         assert_eq!(lo.side, OrderSide::Ask);
@@ -71,7 +72,8 @@ mod tests {
 
     #[test]
     fn reduce_order_constructor() {
-        let ro = ReduceOrder::new("28800744 R b 20".split(' ').collect());
+        let ro_vec: Vec<&str> = "28800744 R b 20".split(' ').collect();
+        let ro = ReduceOrder::new(&ro_vec);
         assert_eq!(ro.timestamp, 28800744);
         assert_eq!(ro.size, 20);
         assert_eq!(ro.id, hash("b"));

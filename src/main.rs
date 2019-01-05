@@ -298,8 +298,8 @@ mod tests {
     fn orderbook_add_ask() {
         let target_size = 200;
         let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
-        let ask = LimitOrder::new("28800538 A b S 44.26 100".split(' ').collect());
-        ob.add(ask);
+
+        ob.process("28800538 A b S 44.26 100");
         assert_eq!(ob.asks_total_size, 100);
         assert_eq!(ob.bids_total_size, 0);
         assert_eq!(ob.summarise_target(), None);
@@ -314,8 +314,8 @@ mod tests {
     fn orderbook_add_bid() {
         let target_size = 200;
         let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
-        let bid = LimitOrder::new("28800538 A b B 44.26 100".split(' ').collect());
-        ob.add(bid);
+
+        ob.process("28800538 A b B 44.26 100");
         assert_eq!(ob.bids_total_size, 100);
         assert_eq!(ob.asks_total_size, 0);
         assert_eq!(ob.summarise_target(), None);
@@ -330,10 +330,8 @@ mod tests {
     fn orderbook_reduce_ask() {
         let target_size = 200;
         let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
-        let ask = LimitOrder::new("28800538 A b S 44.26 100".split(' ').collect());
-        ob.add(ask);
-        let ro = ReduceOrder::new("28800744 R b 20".split(' ').collect());
-        ob.reduce_order(&ro);
+        ob.process("28800538 A b S 44.26 100");
+        ob.process("28800744 R b 20");
         assert_eq!(ob.asks_total_size, 80);
         assert_eq!(ob.bids_total_size, 0);
         assert_eq!(ob.summarise_target(), None);
@@ -348,10 +346,9 @@ mod tests {
     fn orderbook_reduce_bid() {
         let target_size = 200;
         let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
-        let bid = LimitOrder::new("28800538 A b B 44.26 100".split(' ').collect());
-        ob.add(bid);
-        let ro = ReduceOrder::new("28800744 R b 20".split(' ').collect());
-        ob.reduce_order(&ro);
+
+        ob.process("28800538 A b B 44.26 100");
+        ob.process("28800744 R b 20");
         assert_eq!(ob.bids_total_size, 80);
         assert_eq!(ob.asks_total_size, 0);
         assert_eq!(ob.last_action_side, OrderSide::Bid);
@@ -366,12 +363,10 @@ mod tests {
     fn orderbook_add_reduce_add() {
         let target_size = 200;
         let mut ob = OrderBook::new(target_size, IdPriceCacheFnvMap::default());
-        let bid = LimitOrder::new("28800538 A b B 44.26 100".split(' ').collect());
-        ob.add(bid);
-        let ro = ReduceOrder::new("28800744 R b 20".split(' ').collect());
-        ob.reduce_order(&ro);
-        let bid2 = LimitOrder::new("28800986 A c B 44.07 500".split(' ').collect());
-        ob.add(bid2);
+
+        ob.process("28800538 A b B 44.26 100");
+        ob.process("28800744 R b 20");
+        ob.process("28800986 A c B 44.07 500");
         let ret = ob.summarise_target();
         assert_eq!(ob.bids_total_size, 580);
         assert_eq!(ob.asks_total_size, 0);
