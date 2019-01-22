@@ -8,7 +8,7 @@ use bidamount::BidAmount;
 
 #[derive(Copy, Clone, Debug, Default, Eq, Hash, PartialEq, PartialOrd, Ord)] // allows us to use Amount as a HashMap key
 pub struct Amount {
-    pub as_int: i64,
+    pub as_int: u64,
 }
 
 impl Amount {
@@ -23,7 +23,7 @@ impl Amount {
             Err(err) => panic!("Input string {} doesn't parse as f64 {}", input_string, err),
         };
         let float_times_hundred = float_res * 100.0;
-        let int_res = float_times_hundred.round() as i64;
+        let int_res = float_times_hundred.round() as u64;
         Amount { as_int: int_res }
     }
 }
@@ -34,15 +34,15 @@ impl AddAssign for Amount {
     }
 }
 
-impl MulAssign<i64> for Amount {
-    fn mul_assign(&mut self, multiplier: i64) {
+impl MulAssign<u64> for Amount {
+    fn mul_assign(&mut self, multiplier: u64) {
         self.as_int *= multiplier;
     }
 }
 
-impl Mul<i64> for Amount {
+impl Mul<u64> for Amount {
     type Output = Self;
-    fn mul(self, rhs: i64) -> Self {
+    fn mul(self, rhs: u64) -> Self {
         Amount {
             as_int: self.as_int * rhs,
         }

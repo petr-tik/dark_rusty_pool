@@ -38,25 +38,25 @@ impl IdPriceCache for IdPriceCacheFnvMap {
     }
 }
 
-type Depth = i64;
+type Depth = u64;
 
 type BidsVec = Vec<(BidAmount, Depth)>;
 type AsksVec = Vec<(Amount, Depth)>;
 
 struct OrderBook<T: IdPriceCache + Sized> {
     cache: T,
-    bids_total_size: i64,
+    bids_total_size: u64,
     asks: AsksVec,
     bids: BidsVec,
-    asks_total_size: i64,
-    target_size: i64,
+    asks_total_size: u64,
+    target_size: u64,
     // only 1 side is affected on Reduce or Limit order
     last_action_side: OrderSide, // which side was touched last
     last_action_timestamp: i64,  // timestamp of last touched side
 }
 
 impl<T: IdPriceCache + Sized> OrderBook<T> {
-    fn new(target_size: i64, cache: T) -> Self {
+    fn new(target_size: u64, cache: T) -> Self {
         let cap = 256;
         OrderBook {
             cache,
@@ -210,14 +210,14 @@ impl<T: IdPriceCache + Sized> OrderBook<T> {
 /// Returns the target size for the order book.
 /// Takes env args and parses them into a i64
 /// Panics when no target size is provided or parsing fails
-fn get_target_size() -> i64 {
+fn get_target_size() -> u64 {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         panic!("Need target size input");
     }
-    match args[1].parse::<i64>() {
+    match args[1].parse::<u64>() {
         Ok(res) => res,
-        Err(_e) => panic!("Couldn't parse input into i64"),
+        Err(_e) => panic!("Couldn't parse input into u64"),
     }
 }
 

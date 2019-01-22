@@ -14,7 +14,7 @@ pub struct ReduceOrder {
     // "28800744 R b 20"
     pub timestamp: i64,
     pub id: u64,
-    pub size: i64,
+    pub size: u64,
 }
 
 impl ReduceOrder {
@@ -23,7 +23,7 @@ impl ReduceOrder {
         ReduceOrder {
             timestamp: input_vec[0].parse::<i64>().unwrap_or(0),
             id: hash(&input_vec[2]),
-            size: input_vec[3].parse::<i64>().unwrap_or(0),
+            size: input_vec[3].parse::<u64>().unwrap_or(0),
         }
     }
 }
@@ -35,7 +35,7 @@ pub struct LimitOrder {
     pub id: u64,
     pub side: OrderSide,
     pub price: Amount,
-    pub size: i64,
+    pub size: u64,
 }
 
 impl LimitOrder {
@@ -50,7 +50,7 @@ impl LimitOrder {
                 _ => panic!("Couldn't parse order side from {}", input_vec[3]),
             },
             price: Amount::new_from_str(&input_vec[4]),
-            size: input_vec[5].parse::<i64>().unwrap_or(0),
+            size: input_vec[5].parse::<u64>().unwrap_or(0),
         }
     }
 }
