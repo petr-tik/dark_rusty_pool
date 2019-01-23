@@ -287,6 +287,25 @@ Performance counter stats for './target/release/order_book 200':
 As far as I understand PGO, the metric I should be looking at is the number of instructions executed. The number went from 5,387,370,693 to 5,168,731,552, but the time overall didn't, because instructions per cycle went down. 
 
 
+9. Joined the prices and order depths vectors into 1 vector of tuples (price, size). Suggested by [@rreverser](https://twitter.com/RReverser) along with the `binary_search_by_key`, which allows you to pass a lambda to dereference a given tuple element for comparison. Unexpectedly, it made a relatively big improvement. There doesn't seem to be a significant difference in cache refs or cache hit-rate. The biggest gain seems to be decreasing the number of instructions to execute (duh!). 
+
+```bash
+ Performance counter stats for './target/release/order_book 200':
+
+       1170.263790      cpu-clock (msec)          #    0.997 CPUs utilized
+       1170.265096      task-clock (msec)         #    0.997 CPUs utilized
+                 7      cs                        #    0.006 K/sec
+        17,354,440      cache-references          #   14.830 M/sec                    (83.34%)
+         8,395,296      cache-misses              #   48.375 % of all cache refs      (83.26%)
+     1,012,923,234      branches                  #  865.551 M/sec                    (83.25%)
+         9,436,980      branch-misses             #    0.93% of all branches          (66.64%)
+     5,149,893,018      instructions              #    2.22  insn per cycle           (83.39%)
+     2,322,904,535      cycles                    #    1.985 GHz                      (83.51%)
+
+       1.173795646 seconds time elapsed
+```
+
+
 ## Perf improvements to investigate
 
 1. Currently - reducing an order into oblivion (eg. reduce an order of size 100, by >100) doesn't remove its key from the IdPriceCache. This leads to higher memory usage, if unused keys persist in the cache. It might be useful to remove the key-value pair, if the order is ever completely reduced. 
